@@ -1,0 +1,51 @@
+services:
+  db:
+    image: pankovslava/spy-cow-backend-db:latest
+    ports:
+      - '$DATA_BASE_PORT:$DATA_BASE_PORT'
+    container_name: 'data-base-PG'
+    restart: always
+    volumes:
+      - db_storage_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    env_file:
+      - .env
+    command:
+      [
+        'postgres',
+        '-c',
+        'port=$DATA_BASE_PORT',
+        '-c',
+        'logging_collector=on',
+        '-c',
+        'log_statement=all',
+      ]
+
+  app:
+    image: pankovslava/spy-cow-backend-app:latest
+    container_name: 'app'
+    ports:
+      - '$PORT:$PORT'
+      - '$STUDIO_PRISMA_PORT:$STUDIO_PRISMA_PORT'
+    tty: true
+    stdin_open: true
+    depends_on:
+      - db
+    restart: on-failure
+    networks:
+      - internal
+    env_file:
+      - .env
+    volumes:
+      - ./src:/user/app/src
+      - ./loggerHistory:/user/app/loggerHistory
+
+volumes:
+  db_storage_data:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+    name: 'internal'
