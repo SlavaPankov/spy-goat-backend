@@ -25,7 +25,7 @@ export class UserService {
       where: { id },
       select: {
         id: true,
-        login: true,
+        username: true,
         createdAt: true,
         updatedAt: true,
         version: true,
@@ -40,7 +40,7 @@ export class UserService {
   }
 
   async create(createUserDto: CreateUserDto) {
-    const { login, password: notHashedPassword, confirmPassword } = createUserDto;
+    const { username, password: notHashedPassword, confirmPassword } = createUserDto;
     const password = await this.hashPassword(notHashedPassword);
 
     const isPasswordMatched = await bcrypt.compare(confirmPassword, password);
@@ -49,7 +49,7 @@ export class UserService {
       throw new HttpException(EErrorMessages.PASSWORD_DOESNT_MATCH, EErrorStatus.BAD_REQUEST);
     }
 
-    const user = await this.prisma.user.create({ data: { login, password } });
+    const user = await this.prisma.user.create({ data: { username, password } });
 
     return new UserEntity(user);
   }

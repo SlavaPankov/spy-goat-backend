@@ -10,9 +10,118 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
-  login     String   @unique
+  username  String   @unique
   password  String
   version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  UserStats UserStats?
+
+  createdRooms Room[]   @relation("RoomCreator")
+  players      Player[]
+
+  @@index([username])
+}
+
+model UserStats {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gamesPlayed  Int      @default(0)
+  gamesWon     Int      @default(0)
+  totalPenalty Int      @default(0)
+  bestScore    Int?
+  updatedAt    DateTime @updatedAt
+}
+
+model Room {
+  id   String @id @default(uuid())
+  name String
+  code String @unique
+
+  maxPlayers Int        @default(4)
+  isPrivate  Boolean    @default(false)
+  status     RoomStatus @default(WAITING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation("RoomCreator", fields: [creatorId], references: [id])
+
+  players Player[]
+  game    Game?
+
+  @@index([status, code])
+}
+
+enum RoomStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+model Game {
+  id String @id @default(uuid())
+
+  roomId String @unique
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  status GameStatus @default(IN_PROGRESS)
+
+  currentRound Int @default(1)
+  currentTurn  Int @default(1)
+
+  rows Json
+
+  currentTurnCards Json @default("[]")
+
+  history Json @default("[]")
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  players Player[]
+
+  @@index([roomId, status])
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  FINISHED
+}
+
+model Player {
+  id String @id @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  gameId String?
+  game   Game?   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  isBot    Boolean @default(false)
+  botName  String?
+  position Int
+
+  hand Json @default("[]")
+
+  penaltyCard Json @default("[]")
+
+  totalPenalty Int @default(0)
+
+  selectedCard Json?
+
+  isWinner      Boolean @default(false)
+  finalPosition Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@unique([gameId, position])
+  @@index([roomId, userId])
 }

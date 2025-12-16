@@ -1,51 +1,49 @@
+version: '3.8'
+
 services:
-  db:
-    image: pankovslava/spy-cow-backend-db:latest
+  postgres:
+    image: postgres:16-alpine
+    container_name: spy-cow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - '$DATA_BASE_PORT:$DATA_BASE_PORT'
-    container_name: 'data-base-PG'
-    restart: always
+      - "${DB_PORT}:5432"
     volumes:
-      - db_storage_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - internal
-    env_file:
-      - .env
-    command:
-      [
-        'postgres',
-        '-c',
-        'port=$DATA_BASE_PORT',
-        '-c',
-        'logging_collector=on',
-        '-c',
-        'log_statement=all',
-      ]
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
-    image: pankovslava/spy-cow-backend-app:latest
-    container_name: 'app'
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spy-cow--app
+    restart: unless-stopped
     ports:
-      - '$PORT:$PORT'
-      - '$STUDIO_PRISMA_PORT:$STUDIO_PRISMA_PORT'
-    tty: true
-    stdin_open: true
+      - "${APP_PORT}:3000"
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      NODE_ENV: production
     depends_on:
-      - db
-    restart: on-failure
+      postgres:
+        condition: service_healthy
     networks:
-      - internal
-    env_file:
-      - .env
+      - app-network
     volumes:
-      - ./src:/user/app/src
-      - ./loggerHistory:/user/app/loggerHistory
+      - ./logs:/app/logs
 
 volumes:
-  db_storage_data:
+  postgres_data:
     driver: local
 
 networks:
-  internal:
+  app-network:
     driver: bridge
-    name: 'internal'

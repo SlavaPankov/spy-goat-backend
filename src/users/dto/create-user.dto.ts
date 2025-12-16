@@ -4,7 +4,7 @@ import { Match } from '../../decorators/match';
 export class CreateUserDto {
   @IsString({ message: 'Login must be a string' })
   @IsNotEmpty({ message: 'Login required' })
-  login: string;
+  username: string;
 
   @IsString({ message: 'Password must be a string' })
   @IsNotEmpty({ message: 'Login required' })
