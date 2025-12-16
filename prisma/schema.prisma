@@ -20,6 +20,7 @@ model User {
 
   createdRooms Room[]   @relation("RoomCreator")
   players      Player[]
+  Token        Token?
 
   @@index([username])
 }
@@ -124,4 +125,13 @@ model Player {
 
   @@unique([gameId, position])
   @@index([roomId, userId])
+}
+
+model Token {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  refreshToken String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

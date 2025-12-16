@@ -1,0 +1,96 @@
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { compare } from 'bcryptjs';
+
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { UpdateAuthDto } from './dto/update-auth.dto';
+
+import { UsersService } from '../users/users.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+}
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly userService: UsersService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService
+  ) {}
+
+  async loginUser(user: User) {
+    const tokens = await this.signTokens(user.id, user.username);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+    return { ...tokens };
+  }
+
+  async registerUser(createUserDto: CreateUserDto) {
+    return this.userService.create(createUserDto);
+  }
+
+  async verifyUserCredentials(loginDto: Omit<CreateUserDto, 'confirmPassword'>): Promise<User | null> {
+    const createUser = await this.prisma.user.findUnique({
+      where: { username: loginDto.username },
+    });
+
+    if (!createUser) return null;
+
+    const passwordIsValid = await compare(loginDto.password, createUser.password);
+
+    return passwordIsValid ? createUser : null;
+  }
+
+  async refreshToken(dto: UpdateAuthDto) {
+    const userToken = await this.prisma.token.findUnique({
+      where: { refreshToken: dto.refreshToken },
+    });
+
+    if (!userToken) {
+      throw new ForbiddenException('Invalid refresh token');
+    }
+
+    const createUser = await this.userService.findOne(userToken.userId);
+    await this.prisma.token.delete({ where: { userId: createUser.id } });
+
+    const tokens = await this.signTokens(createUser.id, createUser.username);
+    await this.updateRefreshToken(createUser.id, tokens.refreshToken);
+
+    return tokens;
+  }
+
+  private async signTokens(userId: string, username: string) {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(
+        { userId, username },
+        {
+          secret: this.configService.get<string>('JWT_SECRET_KEY'),
+          expiresIn: this.configService.get<string>('TOKEN_EXPIRE_TIME'),
+        }
+      ),
+      this.jwtService.signAsync(
+        { userId, username },
+        {
+          secret: this.configService.get<string>('JWT_SECRET_REFRESH_KEY'),
+          expiresIn: this.configService.get<string>('TOKEN_REFRESH_EXPIRE_TIME'),
+        }
+      ),
+    ]);
+
+    return { userId, username, accessToken, refreshToken };
+  }
+
+  private async updateRefreshToken(userId: string, refreshToken: string): Promise<void> {
+    await this.prisma.token.upsert({
+      where: { userId },
+      update: { refreshToken },
+      create: { userId, refreshToken },
+    });
+  }
+}
