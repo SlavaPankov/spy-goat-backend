@@ -121,7 +121,7 @@ model Player {
   finalPosition Int?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 
   @@unique([gameId, position])
   @@index([roomId, userId])

@@ -9,19 +9,13 @@ import { skipAuth } from './decorators/skipAuth.decorator';
 import { UserCredentialsValidationGuard } from './guards/userCredentialsValidation.guard';
 import { RefreshTokenAuthGuard } from './guards/RefreshTokenAuth.guard';
 import { UserEntity } from 'src/users/entities/user.entity';
+import { AuthenticatedRequest } from '../types/interfaces/authenticatedRequest';
 
 interface UserTokens {
   userId: string;
   username: string;
   accessToken: string;
   refreshToken: string;
-}
-interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    username: string;
-    password: string;
-  };
 }
 
 @skipAuth()
