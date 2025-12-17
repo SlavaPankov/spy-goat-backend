@@ -9,4 +9,5 @@ export const enum EErrorMessages {
   ROOM_IS_FULL = 'Room is full',
   NOT_IN_ROOM = 'You are not in this room',
   CANNOT_EXIT_STARTED_GAME = 'Cannot exit from started game',
+  USER_NOT_FOUNT_IN_LEADERBOARD = 'User not found in leaderboard',
 }

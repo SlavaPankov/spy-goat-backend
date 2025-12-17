@@ -11,12 +11,7 @@ import {
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
-
-interface UserRequestInfo {
-  user: {
-    userId: string;
-  };
-}
+import { CurrentUser } from '../decorators/current-user.decorator';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -34,17 +29,17 @@ export class RoomsController {
   }
 
   @Post()
-  create(@Body() dto: CreateRoomDto, @Req() req: UserRequestInfo) {
-    return this.roomsService.create(dto, req.user.userId);
+  create(@Body() dto: CreateRoomDto, @CurrentUser('userId') userId: string) {
+    return this.roomsService.create(dto, userId);
   }
 
   @Post(':id/join')
-  join(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: UserRequestInfo) {
-    return this.roomsService.join(id, req.user.userId);
+  join(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @CurrentUser('userId') userId: string) {
+    return this.roomsService.join(id, userId);
   }
 
   @Post(':id/exit')
-  exit(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: UserRequestInfo) {
-    return this.roomsService.exit(id, req.user.userId);
+  exit(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @CurrentUser('userId') userId: string) {
+    return this.roomsService.exit(id, userId);
   }
 }

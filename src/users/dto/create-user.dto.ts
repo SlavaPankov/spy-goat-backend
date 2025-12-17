@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsString } from 'class-validator';
-import { Match } from '../../decorators/match';
+import { MatchDecorator } from '../../decorators/match.decorator';
 
 export class CreateUserDto {
   @IsString({ message: 'Login must be a string' })
@@ -12,6 +12,6 @@ export class CreateUserDto {
 
   @IsString({ message: 'Password confirmation must be a string' })
   @IsNotEmpty({ message: 'Password confirmation required' })
-  @Match('password', { message: 'Passwords do not match' })
+  @MatchDecorator('password', { message: 'Passwords do not match' })
   confirmPassword: string;
 }

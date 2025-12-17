@@ -1,6 +1,6 @@
 import { registerDecorator, ValidationArguments, ValidationOptions } from 'class-validator';
 
-export function Match<T extends object>(property: keyof T, validationOptions?: ValidationOptions) {
+export function MatchDecorator<T extends object>(property: keyof T, validationOptions?: ValidationOptions) {
   return function (object: T, propertyName: string) {
     registerDecorator({
       name: 'Match',
