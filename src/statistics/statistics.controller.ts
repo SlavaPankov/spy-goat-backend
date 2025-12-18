@@ -10,7 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { LeaderboardSortBy, StatisticsService } from './statistics.service';
-import { CurrentUser } from '../decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('statistics')
 @UseInterceptors(ClassSerializerInterceptor)

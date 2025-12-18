@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsString } from 'class-validator';
-import { MatchDecorator } from '../../decorators/match.decorator';
+import { MatchDecorator } from '../../common/decorators/match.decorator';
 
 export class CreateUserDto {
   @IsString({ message: 'Login must be a string' })

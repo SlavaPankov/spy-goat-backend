@@ -10,4 +10,11 @@ export const enum EErrorMessages {
   NOT_IN_ROOM = 'You are not in this room',
   CANNOT_EXIT_STARTED_GAME = 'Cannot exit from started game',
   USER_NOT_FOUNT_IN_LEADERBOARD = 'User not found in leaderboard',
+  NOT_ENOUGH_PLAYERS = 'Not enough players to start the game',
+  PLAYER_NOT_FOUND_IN_GAME = 'Player not found in this game',
+  PLAYER_NOT_FOUND = 'Player not found',
+  CARD_NOT_IN_HAND = 'Card not in hand',
+  GAME_NOT_FOUND = 'Game not found',
+  INVALID_ROW_CHOSEN = 'Invalid row chosen',
+  NO_CARD_SELECTED = 'No card selected',
 }

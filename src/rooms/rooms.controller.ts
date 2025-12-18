@@ -6,12 +6,11 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Req,
   UseInterceptors,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
-import { CurrentUser } from '../decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)

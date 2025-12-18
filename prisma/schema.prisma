@@ -41,9 +41,10 @@ model Room {
   name String
   code String @unique
 
-  maxPlayers Int        @default(4)
-  isPrivate  Boolean    @default(false)
-  status     RoomStatus @default(WAITING)
+  maxPlayers     Int        @default(4)
+  currentPlayers Int        @default(0)
+  isPrivate      Boolean    @default(false)
+  status         RoomStatus @default(WAITING)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

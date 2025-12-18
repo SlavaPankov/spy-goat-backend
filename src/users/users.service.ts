@@ -5,6 +5,8 @@ import * as bcrypt from 'bcryptjs';
 import { UserEntity } from './entities/user.entity';
 import { EErrorMessages } from '../types/enums/errorMessage';
 import { EErrorStatus } from '../types/enums/errorStatus';
+import { plainToInstance } from 'class-transformer';
+import { UserDto } from './dto/user.dto';
 
 @Injectable()
 export class UsersService {
@@ -17,26 +19,21 @@ export class UsersService {
   }
 
   async findAll() {
-    return this.prisma.user.findMany();
+    const users = await this.prisma.user.findMany();
+
+    return plainToInstance(UserDto, users);
   }
 
   async findOne(id: string) {
     const currentUser = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        username: true,
-        createdAt: true,
-        updatedAt: true,
-        version: true,
-      },
     });
 
     if (!currentUser) {
       throw new NotFoundException(EErrorMessages.USER_NOT_FOUND);
     }
 
-    return currentUser;
+    return new UserEntity(currentUser);
   }
 
   async create(dto: CreateUserDto) {
