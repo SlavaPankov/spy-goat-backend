@@ -1,3 +1,4 @@
+// game.service.ts
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatisticsService } from '../statistics/statistics.service';
@@ -16,6 +17,11 @@ export interface TurnAction {
   takenCards?: Card[];
 }
 
+interface PlayerCard {
+  playerId: string;
+  card: Card;
+}
+
 interface GameState {
   gameId: string;
   roomId: string;
@@ -29,8 +35,17 @@ interface GameState {
     hand: Card[];
     totalPenalty: number;
     isBot: boolean;
+    penaltyCard: Card[];
+    selectedCard: Card;
+    isSelectedCardConfirmed: boolean;
+    isWinner: boolean;
   }>;
   status: string;
+  waitingForRowChoice?: boolean;
+  currentChoosingPlayer?: string;
+  currentAction?: TurnAction;
+  allPlayersReady?: boolean;
+  revealedCards?: Array<{ playerId: string; card: Card }>;
 }
 
 interface PlayedCard {
@@ -40,6 +55,10 @@ interface PlayedCard {
 
 @Injectable()
 export class GameService {
+  private readonly pendingPlayers: Map<string, PlayerCard[]> = new Map();
+  private readonly currentProcessingPlayer: Map<string, PlayerCard> = new Map();
+  private readonly currentAction: Map<string, TurnAction> = new Map();
+
   constructor(
     private readonly statisticsService: StatisticsService,
     private readonly prismaService: PrismaService
@@ -144,49 +163,32 @@ export class GameService {
     return bestRow;
   }
 
-  processTurnLogic(
-    playedCards: { playerId: string; card: Card }[],
-    rows: Card[][]
-  ): {
-    actions: TurnAction[];
-    updatedRows: Card[][];
-  } {
-    const sortedPlays = [...playedCards].sort((a, b) => a.card.number - b.card.number);
-    const actions: TurnAction[] = [];
-    const updatedRows = rows.map((row) => [...row]);
+  calculateActionForPlayer(playerCard: PlayerCard, rows: Card[][]): TurnAction {
+    const rowIndex = this.findRowForCard(playerCard.card, rows);
 
-    for (const play of sortedPlays) {
-      const rowIndex = this.findRowForCard(play.card, updatedRows);
-
-      if (rowIndex === -1) {
-        actions.push({
-          playerId: play.playerId,
-          actionType: 'choose_row',
-        });
-      } else {
-        const targetRow = updatedRows[rowIndex];
-
-        if (targetRow.length === 5) {
-          actions.push({
-            playerId: play.playerId,
-            actionType: 'take_row',
-            rowIndex,
-            takenCards: [...targetRow],
-          });
-
-          updatedRows[rowIndex] = [play.card];
-        } else {
-          updatedRows[rowIndex].push(play.card);
-          actions.push({
-            playerId: play.playerId,
-            actionType: 'place',
-            rowIndex,
-          });
-        }
-      }
+    if (rowIndex === -1) {
+      return {
+        playerId: playerCard.playerId,
+        actionType: 'choose_row',
+      };
     }
 
-    return { actions, updatedRows };
+    const targetRow = rows[rowIndex];
+
+    if (targetRow.length === 5) {
+      return {
+        playerId: playerCard.playerId,
+        actionType: 'take_row',
+        rowIndex,
+        takenCards: [...targetRow],
+      };
+    }
+
+    return {
+      playerId: playerCard.playerId,
+      actionType: 'place',
+      rowIndex,
+    };
   }
 
   async getGameState(gameId: string): Promise<GameState> {
@@ -216,21 +218,35 @@ export class GameService {
 
     const rows = this.parseJsonArray<Card[]>(game.rows);
 
+    const allPlayersReady = game.players.every((p) => p.isSelectedCardConfirmed);
+
+    const currentPlayer = this.currentProcessingPlayer.get(gameId);
+    const currentAction = this.currentAction.get(gameId);
+
     return {
       gameId: game.id,
       roomId: game.roomId,
       currentRound: game.currentRound,
       currentTurn: game.currentTurn,
       rows,
-      players: game.players.map((p) => ({
-        id: p.id,
-        userId: p.userId,
-        username: p.isBot ? (p.botName ?? 'Bot') : (p.user?.username ?? 'Unknown'),
-        hand: this.parseJsonArray<Card>(p.hand),
-        totalPenalty: p.totalPenalty,
-        isBot: p.isBot,
+      players: game.players.map((player) => ({
+        id: player.id,
+        userId: player.userId,
+        username: player.isBot ? (player.botName ?? 'Bot') : (player.user?.username ?? 'Unknown'),
+        hand: this.parseJsonArray<Card>(player.hand),
+        totalPenalty: player.totalPenalty,
+        isBot: player.isBot,
+        penaltyCard: this.parseJsonArray<Card>(player.penaltyCard),
+        selectedCard: this.parseJson<Card>(player.selectedCard),
+        isSelectedCardConfirmed: player.isSelectedCardConfirmed,
+        isWinner: player.isWinner,
       })),
       status: game.status,
+      revealedCards: this.parseJsonArray<PlayedCard>(game.currentTurnCards),
+      allPlayersReady,
+      waitingForRowChoice: currentAction?.actionType === 'choose_row',
+      currentChoosingPlayer: currentPlayer?.playerId,
+      currentAction,
     };
   }
 
@@ -299,156 +315,7 @@ export class GameService {
     return this.getGameState(game.id);
   }
 
-  async playCard(gameId: string, playerId: string, cardNumber: number) {
-    const player = await this.prismaService.player.findUnique({
-      where: { id: playerId },
-    });
-
-    if (player?.gameId !== gameId) {
-      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND_IN_GAME);
-    }
-
-    const hand = this.parseJsonArray<Card>(player.hand);
-    const cardIndex = hand.findIndex((card) => card.number === cardNumber);
-
-    if (cardIndex === -1) {
-      throw new BadRequestException(EErrorMessages.CARD_NOT_IN_HAND);
-    }
-
-    const card = hand[cardIndex];
-    hand.splice(cardIndex, 1);
-
-    await this.prismaService.player.update({
-      where: { id: playerId },
-      data: {
-        hand: hand as unknown as Prisma.JsonArray,
-        selectedCard: card as unknown as Prisma.JsonArray,
-      },
-    });
-
-    const game = await this.prismaService.game.findUnique({
-      where: { id: gameId },
-    });
-
-    if (!game) {
-      throw new BadRequestException(EErrorMessages.GAME_NOT_FOUND);
-    }
-
-    const currentTurnCards = this.parseJsonArray<PlayedCard>(game.currentTurnCards);
-
-    currentTurnCards.push({ playerId, card });
-
-    await this.prismaService.game.update({
-      where: { id: gameId },
-      data: {
-        currentTurnCards: currentTurnCards as unknown as Prisma.JsonArray,
-      },
-    });
-  }
-
-  async checkAllPlayersPlayed(gameId: string): Promise<boolean> {
-    const game = await this.prismaService.game.findUnique({
-      where: { id: gameId },
-      include: {
-        players: true,
-      },
-    });
-
-    if (!game) {
-      throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
-    }
-
-    const currentTernCards = this.parseJsonArray<PlayedCard>(game.currentTurnCards);
-
-    return currentTernCards.length === game.players.length;
-  }
-
-  async processTurn(gameId: string): Promise<GameState & { actions: TurnAction[] }> {
-    const game = await this.prismaService.game.findUnique({
-      where: { id: gameId },
-      include: {
-        players: true,
-      },
-    });
-
-    if (!game) {
-      throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
-    }
-
-    const currentTurnCards = this.parseJsonArray<PlayedCard>(game.currentTurnCards);
-    const rows = this.parseJsonArray<Card[]>(game.rows);
-
-    const { actions, updatedRows } = this.processTurnLogic(currentTurnCards, rows);
-
-    for (const action of actions) {
-      if (action.actionType === 'take_row' && action.takenCards) {
-        const player = await this.prismaService.player.findUnique({
-          where: { id: action.playerId },
-        });
-
-        if (player) {
-          const penaltyCard = this.parseJsonArray<Card>(player.penaltyCard);
-          const newPenaltyCard = [...penaltyCard, ...action.takenCards];
-          const penalty = action.takenCards.reduce((sum, card) => sum + card.penalty, 0);
-
-          await this.prismaService.player.update({
-            where: { id: action.playerId },
-            data: {
-              penaltyCard: newPenaltyCard as unknown as Prisma.JsonArray,
-              totalPenalty: player.totalPenalty + penalty,
-              selectedCard: Prisma.JsonNull,
-            },
-          });
-        } else {
-          await this.prismaService.player.update({
-            where: { id: action.playerId },
-            data: {
-              selectedCard: Prisma.JsonNull,
-            },
-          });
-        }
-      }
-    }
-
-    await this.prismaService.game.update({
-      where: { id: gameId },
-      data: {
-        rows: updatedRows as unknown as Prisma.JsonArray,
-        currentTurnCards: [] as unknown as Prisma.JsonArray,
-        currentTurn: { increment: 1 },
-      },
-    });
-
-    const playersWithCards = await this.prismaService.player.findMany({
-      where: { gameId },
-    });
-
-    const allHandsEmpty = playersWithCards.every((player) => {
-      const hand = this.parseJsonArray<Card>(player.hand);
-      return hand.length === 0;
-    });
-
-    if (allHandsEmpty) {
-      await this.checkGameEnd(gameId);
-    }
-
-    const gameState = await this.getGameState(gameId);
-
-    return {
-      ...gameState,
-      actions,
-    };
-  }
-
-  async chooseRow(gameId: string, playerId: string, rowIndex: number): Promise<void> {
-    const game = await this.prismaService.game.findUnique({
-      where: { id: gameId },
-    });
-
-    if (!game) {
-      throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
-    }
-
+  async selectCard(playerId: string, card: Card) {
     const player = await this.prismaService.player.findUnique({
       where: { id: playerId },
     });
@@ -457,14 +324,277 @@ export class GameService {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
-    const rows = this.parseJsonArray<Card[]>(game.rows);
+    const hand = this.parseJsonArray<Card>(player.hand);
+    const cardExists = hand.find((c) => c.number === card.number);
 
-    if (rowIndex < 0 || rowIndex >= rows.length) {
-      throw new BadRequestException(EErrorMessages.INVALID_ROW_CHOSEN);
+    if (!cardExists) {
+      throw new BadRequestException(EErrorMessages.CARD_NOT_IN_HAND);
+    }
+
+    await this.prismaService.player.update({
+      where: { id: playerId },
+      data: {
+        selectedCard: card as unknown as Prisma.JsonObject,
+        isSelectedCardConfirmed: false,
+      },
+    });
+  }
+
+  async confirmCardChoice(playerId: string): Promise<{ allReady: boolean; gameId: string }> {
+    const player = await this.prismaService.player.findUnique({
+      where: { id: playerId },
+      include: {
+        game: {
+          include: {
+            players: true,
+          },
+        },
+      },
+    });
+
+    if (!player || !player.game) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
     if (!player.selectedCard) {
-      throw new BadRequestException(EErrorMessages.NO_CARD_SELECTED);
+      throw new BadRequestException('No card selected');
+    }
+
+    const selectedCard = this.parseJson<Card>(player.selectedCard);
+
+    const hand = this.parseJsonArray<Card>(player.hand);
+    const cardIndex = hand.findIndex((c) => c.number === selectedCard.number);
+
+    if (cardIndex === -1) {
+      throw new BadRequestException(EErrorMessages.CARD_NOT_IN_HAND);
+    }
+
+    hand.splice(cardIndex, 1);
+
+    await this.prismaService.player.update({
+      where: { id: playerId },
+      data: {
+        hand: hand as unknown as Prisma.JsonArray,
+        isSelectedCardConfirmed: true,
+      },
+    });
+
+    const updatedGame = await this.prismaService.game.findUnique({
+      where: { id: player.gameId! },
+      include: {
+        players: true,
+      },
+    });
+
+    const allReady = updatedGame!.players.every((p) => p.isSelectedCardConfirmed);
+
+    if (allReady) {
+      const currentTurnCards = this.parseJsonArray<PlayedCard>(updatedGame!.currentTurnCards);
+
+      for (const p of updatedGame!.players) {
+        if (p.selectedCard) {
+          const card = this.parseJson<Card>(p.selectedCard);
+          currentTurnCards.push({
+            playerId: p.id,
+            card,
+          });
+        }
+      }
+
+      await this.prismaService.game.update({
+        where: { id: player.gameId! },
+        data: {
+          currentTurnCards: currentTurnCards as unknown as Prisma.JsonArray,
+        },
+      });
+    }
+
+    return {
+      allReady,
+      gameId: player.gameId!,
+    };
+  }
+
+  async revealCards(gameId: string): Promise<Array<{ playerId: string; card: Card }>> {
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
+    }
+
+    return this.parseJsonArray<PlayedCard>(game.currentTurnCards);
+  }
+
+  async startTurnProcessing(gameId: string): Promise<GameState & { action: TurnAction }> {
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+      include: { players: true },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const currentTurnCards = this.parseJsonArray<PlayedCard>(game.currentTurnCards);
+
+    // Сортируем игроков по возрастанию номера карты
+    const sortedPlayers = currentTurnCards
+      .map((pc) => ({ playerId: pc.playerId, card: pc.card }))
+      .sort((a, b) => a.card.number - b.card.number);
+
+    this.pendingPlayers.set(gameId, sortedPlayers);
+
+    // Начинаем обработку первого игрока
+    return this.processNextPlayer(gameId);
+  }
+
+  async processNextPlayer(gameId: string): Promise<GameState & { action: TurnAction }> {
+    const pending = this.pendingPlayers.get(gameId);
+
+    if (!pending || pending.length === 0) {
+      // Все игроки обработаны - завершаем раунд
+      await this.finishRound(gameId);
+      const gameState = await this.getGameState(gameId);
+      return {
+        ...gameState,
+        action: { playerId: '', actionType: 'place' }, // dummy action
+      };
+    }
+
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const rows = this.parseJsonArray<Card[]>(game.rows);
+
+    // Берем первого игрока из очереди
+    const currentPlayer = pending[0];
+    this.currentProcessingPlayer.set(gameId, currentPlayer);
+
+    // Вычисляем action для этого игрока на ТЕКУЩЕМ состоянии стола
+    const action = this.calculateActionForPlayer(currentPlayer, rows);
+    this.currentAction.set(gameId, action);
+
+    if (action.actionType === 'place' || action.actionType === 'take_row') {
+      // Применяем действие сразу
+      await this.applyAction(gameId, action);
+
+      // Удаляем игрока из очереди
+      pending.shift();
+      this.pendingPlayers.set(gameId, pending);
+
+      // Переходим к следующему игроку
+      return this.processNextPlayer(gameId);
+    }
+
+    // Если choose_row - ждем выбора игрока
+    const gameState = await this.getGameState(gameId);
+    return {
+      ...gameState,
+      action,
+    };
+  }
+
+  private async applyAction(gameId: string, action: TurnAction): Promise<void> {
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const rows = this.parseJsonArray<Card[]>(game.rows);
+    const player = await this.prismaService.player.findUnique({
+      where: { id: action.playerId },
+    });
+
+    if (!player) {
+      throw new NotFoundException('Player not found');
+    }
+
+    if (action.actionType === 'place' && action.rowIndex !== undefined) {
+      const selectedCard = this.parseJson<Card>(player.selectedCard);
+      rows[action.rowIndex].push(selectedCard);
+
+      await this.prismaService.game.update({
+        where: { id: gameId },
+        data: {
+          rows: rows as unknown as Prisma.JsonArray,
+        },
+      });
+
+      await this.prismaService.player.update({
+        where: { id: action.playerId },
+        data: {
+          selectedCard: Prisma.JsonNull,
+        },
+      });
+    } else if (action.actionType === 'take_row' && action.rowIndex !== undefined && action.takenCards) {
+      const selectedCard = this.parseJson<Card>(player.selectedCard);
+
+      const penaltyCards = this.parseJsonArray<Card>(player.penaltyCard);
+      const newPenaltyCards = [...penaltyCards, ...action.takenCards];
+      const penalty = action.takenCards.reduce((sum, card) => sum + card.penalty, 0);
+
+      rows[action.rowIndex] = [selectedCard];
+
+      await this.prismaService.game.update({
+        where: { id: gameId },
+        data: {
+          rows: rows as unknown as Prisma.JsonArray,
+        },
+      });
+
+      await this.prismaService.player.update({
+        where: { id: action.playerId },
+        data: {
+          penaltyCard: newPenaltyCards as unknown as Prisma.JsonArray,
+          totalPenalty: player.totalPenalty + penalty,
+          selectedCard: Prisma.JsonNull,
+        },
+      });
+    }
+  }
+
+  async chooseRow(gameId: string, playerId: string, rowIndex: number): Promise<GameState & { action?: TurnAction }> {
+    const currentPlayer = this.currentProcessingPlayer.get(gameId);
+    const currentAction = this.currentAction.get(gameId);
+
+    if (currentPlayer?.playerId !== playerId) {
+      throw new BadRequestException('It is not your turn to choose a row');
+    }
+
+    if (currentAction?.actionType !== 'choose_row') {
+      throw new BadRequestException('You are not supposed to choose a row right now');
+    }
+
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const rows = this.parseJsonArray<Card[]>(game.rows);
+
+    if (rowIndex < 0 || rowIndex >= rows.length) {
+      throw new BadRequestException('Invalid row index');
+    }
+
+    const player = await this.prismaService.player.findUnique({
+      where: { id: playerId },
+    });
+
+    if (!player) {
+      throw new NotFoundException('Player not found');
     }
 
     const selectedCard = this.parseJson<Card>(player.selectedCard);
@@ -475,6 +605,15 @@ export class GameService {
     const penaltyCards = this.parseJsonArray<Card>(player.penaltyCard);
     const newPenaltyCards = [...penaltyCards, ...takenRow];
 
+    rows[rowIndex] = [selectedCard];
+
+    await this.prismaService.game.update({
+      where: { id: gameId },
+      data: {
+        rows: rows as unknown as Prisma.JsonArray,
+      },
+    });
+
     await this.prismaService.player.update({
       where: { id: playerId },
       data: {
@@ -484,15 +623,54 @@ export class GameService {
       },
     });
 
-    const updatedRows = [...rows];
-    updatedRows[rowIndex] = [selectedCard];
+    // Удаляем игрока из очереди
+    const pending = this.pendingPlayers.get(gameId);
+    if (pending) {
+      pending.shift();
+      this.pendingPlayers.set(gameId, pending);
+    }
+
+    this.currentProcessingPlayer.delete(gameId);
+    this.currentAction.delete(gameId);
+
+    // Переходим к следующему игроку
+    return this.processNextPlayer(gameId);
+  }
+
+  private async finishRound(gameId: string): Promise<void> {
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+      include: { players: true },
+    });
+
+    if (!game) return;
+
+    this.pendingPlayers.delete(gameId);
+    this.currentProcessingPlayer.delete(gameId);
+    this.currentAction.delete(gameId);
+
+    await this.resetPlayersReady(gameId);
 
     await this.prismaService.game.update({
       where: { id: gameId },
       data: {
-        rows: updatedRows as unknown as Prisma.JsonArray,
+        currentTurnCards: [] as unknown as Prisma.JsonArray,
+        currentTurn: game.currentTurn + 1,
       },
     });
+
+    const playersWithCards = await this.prismaService.player.findMany({
+      where: { gameId },
+    });
+
+    const allHandsEmpty = playersWithCards.every((p) => {
+      const hand = this.parseJsonArray<Card>(p.hand);
+      return hand.length === 0;
+    });
+
+    if (allHandsEmpty) {
+      await this.checkGameEnd(gameId);
+    }
   }
 
   async checkGameEnd(gameId: string): Promise<void> {
@@ -589,6 +767,30 @@ export class GameService {
       where: { id: game.roomId },
       data: {
         status: 'FINISHED',
+      },
+    });
+  }
+
+  async setIsReady(playerId: string, isReady: boolean) {
+    const currentPlayer = await this.prismaService.player.findFirst({ where: { id: playerId } });
+
+    if (!currentPlayer) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
+    }
+
+    return this.prismaService.player.update({
+      where: { id: playerId },
+      data: {
+        isReady,
+      },
+    });
+  }
+
+  async resetPlayersReady(gameId: string): Promise<void> {
+    await this.prismaService.player.updateMany({
+      where: { gameId },
+      data: {
+        isSelectedCardConfirmed: false,
       },
     });
   }

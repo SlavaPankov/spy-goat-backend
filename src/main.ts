@@ -9,6 +9,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  app.setGlobalPrefix('api/v1');
   app.useGlobalInterceptors(new ExcludePasswordInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
@@ -17,6 +18,8 @@ async function bootstrap() {
       transform: true,
     })
   );
+
+  app.enableCors();
 
   await app.listen(process.env.PORT ?? 3000);
 }

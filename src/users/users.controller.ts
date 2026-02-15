@@ -1,5 +1,6 @@
 import { ClassSerializerInterceptor, Controller, Get, Param, ParseUUIDPipe, UseInterceptors } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('users')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -9,6 +10,11 @@ export class UsersController {
   @Get()
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('me')
+  findMe(@CurrentUser('userId') userId: string) {
+    return this.usersService.findOne(userId);
   }
 
   @Get(':id')

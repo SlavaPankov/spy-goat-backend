@@ -63,6 +63,8 @@ export class RoomsService {
       throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
     }
 
+    currentRoom.players.sort((a, b) => b.position - a.position);
+
     return plainToInstance(RoomDto, currentRoom);
   }
 
