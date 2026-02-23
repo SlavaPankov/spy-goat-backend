@@ -17,4 +17,6 @@ export const enum EErrorMessages {
   GAME_NOT_FOUND = 'Game not found',
   INVALID_ROW_CHOSEN = 'Invalid row chosen',
   NO_CARD_SELECTED = 'No card selected',
+  NO_ROOM_STATS = 'No stats for current room',
+  ACTIVE_GAME_NOT_FOUND = 'Active game not found',
 }

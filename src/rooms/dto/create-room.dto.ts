@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateRoomDto {
   @IsNotEmpty()
@@ -20,4 +20,8 @@ export class CreateRoomDto {
 
   @IsBoolean()
   isPrivate: boolean;
+
+  @IsString()
+  @ValidateIf((object: Record<string, unknown>) => object.isPrivate as boolean)
+  password: string;
 }

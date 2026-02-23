@@ -22,13 +22,13 @@ interface PlayerCard {
   card: Card;
 }
 
-interface GameState {
+export interface GameState {
   gameId: string;
   roomId: string;
   currentRound: number;
   currentTurn: number;
   rows: Card[][];
-  players: Array<{
+  players: {
     id: string;
     userId: string | null;
     username: string;
@@ -38,14 +38,28 @@ interface GameState {
     penaltyCard: Card[];
     selectedCard: Card;
     isSelectedCardConfirmed: boolean;
+    roundPenalty: number;
+    roundPenaltyCard: Card[];
     isWinner: boolean;
-  }>;
+  }[];
   status: string;
   waitingForRowChoice?: boolean;
   currentChoosingPlayer?: string;
   currentAction?: TurnAction;
   allPlayersReady?: boolean;
-  revealedCards?: Array<{ playerId: string; card: Card }>;
+  revealedCards?: { playerId: string; card: Card }[];
+}
+
+export interface RoundFinishedData {
+  gameState: GameState;
+  roundNumber: number;
+  playersRoundScores: {
+    playerId: string;
+    username: string;
+    roundPenalty: number;
+    roundPenaltyCards: Card[];
+    totalPenalty: number;
+  }[];
 }
 
 interface PlayedCard {
@@ -238,6 +252,8 @@ export class GameService {
         isBot: player.isBot,
         penaltyCard: this.parseJsonArray<Card>(player.penaltyCard),
         selectedCard: this.parseJson<Card>(player.selectedCard),
+        roundPenalty: player.roundPenalty,
+        roundPenaltyCard: this.parseJsonArray<Card>(player.roundPenaltyCard),
         isSelectedCardConfirmed: player.isSelectedCardConfirmed,
         isWinner: player.isWinner,
       })),
@@ -427,7 +443,7 @@ export class GameService {
     return this.parseJsonArray<PlayedCard>(game.currentTurnCards);
   }
 
-  async startTurnProcessing(gameId: string): Promise<GameState & { action: TurnAction }> {
+  async startTurnProcessing(gameId: string): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean }> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: { players: true },
@@ -450,16 +466,20 @@ export class GameService {
     return this.processNextPlayer(gameId);
   }
 
-  async processNextPlayer(gameId: string): Promise<GameState & { action: TurnAction }> {
+  async processNextPlayer(gameId: string): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean }> {
     const pending = this.pendingPlayers.get(gameId);
 
     if (!pending || pending.length === 0) {
-      // Все игроки обработаны - завершаем раунд
-      await this.finishRound(gameId);
+      // Все игроки обработаны - завершаем ход
+      const { isGameEnded } = await this.finishRound(gameId);
       const gameState = await this.getGameState(gameId);
+
+      const allHandsEmpty = gameState.players.every((p) => p.hand.length === 0);
+
       return {
         ...gameState,
-        action: { playerId: '', actionType: 'place' }, // dummy action
+        action: { playerId: '', actionType: 'place' },
+        isRoundFinished: allHandsEmpty && !isGameEnded,
       };
     }
 
@@ -540,7 +560,10 @@ export class GameService {
       const selectedCard = this.parseJson<Card>(player.selectedCard);
 
       const penaltyCards = this.parseJsonArray<Card>(player.penaltyCard);
+      const roundPenaltyCards = this.parseJsonArray<Card>(player.roundPenaltyCard);
       const newPenaltyCards = [...penaltyCards, ...action.takenCards];
+      const newRoundPenaltyCards = [...roundPenaltyCards, ...action.takenCards];
+
       const penalty = action.takenCards.reduce((sum, card) => sum + card.penalty, 0);
 
       rows[action.rowIndex] = [selectedCard];
@@ -556,7 +579,9 @@ export class GameService {
         where: { id: action.playerId },
         data: {
           penaltyCard: newPenaltyCards as unknown as Prisma.JsonArray,
+          roundPenaltyCard: newRoundPenaltyCards as unknown as Prisma.JsonArray,
           totalPenalty: player.totalPenalty + penalty,
+          roundPenalty: player.roundPenalty + penalty,
           selectedCard: Prisma.JsonNull,
         },
       });
@@ -603,7 +628,9 @@ export class GameService {
     const penalty = takenRow.reduce((sum, card) => sum + card.penalty, 0);
 
     const penaltyCards = this.parseJsonArray<Card>(player.penaltyCard);
+    const roundPenaltyCards = this.parseJsonArray<Card>(player.roundPenaltyCard);
     const newPenaltyCards = [...penaltyCards, ...takenRow];
+    const newRoundPenaltyCards = [...roundPenaltyCards, ...takenRow];
 
     rows[rowIndex] = [selectedCard];
 
@@ -618,7 +645,9 @@ export class GameService {
       where: { id: playerId },
       data: {
         penaltyCard: newPenaltyCards as unknown as Prisma.JsonArray,
+        roundPenaltyCard: newRoundPenaltyCards as unknown as Prisma.JsonArray,
         totalPenalty: player.totalPenalty + penalty,
+        roundPenalty: player.roundPenalty + penalty,
         selectedCard: Prisma.JsonNull,
       },
     });
@@ -637,13 +666,15 @@ export class GameService {
     return this.processNextPlayer(gameId);
   }
 
-  private async finishRound(gameId: string): Promise<void> {
+  private async finishRound(gameId: string): Promise<{ isGameEnded: boolean }> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: { players: true },
     });
 
-    if (!game) return;
+    if (!game) {
+      return { isGameEnded: false };
+    }
 
     this.pendingPlayers.delete(gameId);
     this.currentProcessingPlayer.delete(gameId);
@@ -669,11 +700,15 @@ export class GameService {
     });
 
     if (allHandsEmpty) {
-      await this.checkGameEnd(gameId);
+      const isGameEnded = await this.checkGameEnd(gameId);
+
+      return { isGameEnded };
     }
+
+    return { isGameEnded: false };
   }
 
-  async checkGameEnd(gameId: string): Promise<void> {
+  async checkGameEnd(gameId: string): Promise<boolean> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: {
@@ -693,6 +728,7 @@ export class GameService {
 
     if (loser) {
       await this.finishGame(gameId);
+      return true; // Игра закончена
     } else {
       const deck = this.createDeck();
       const shuffled = this.shuffleDeck(deck);
@@ -703,6 +739,8 @@ export class GameService {
           where: { id: game.players[i].id },
           data: {
             hand: playerHands[i] as unknown as Prisma.JsonArray,
+            roundPenalty: 0,
+            roundPenaltyCard: [] as unknown as Prisma.JsonArray,
           },
         });
       }
@@ -715,6 +753,8 @@ export class GameService {
           currentTurn: 1,
         },
       });
+
+      return false;
     }
   }
 
@@ -734,6 +774,19 @@ export class GameService {
       throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
     }
 
+    await this.prismaService.roomStats.upsert({
+      where: { roomId: game.roomId },
+      create: {
+        roomId: game.roomId,
+        totalGames: 1,
+        completedGames: 1,
+      },
+      update: {
+        totalGames: { increment: 1 },
+        completedGames: { increment: 1 },
+      },
+    });
+
     const sortedPlayers = [...game.players].sort((a, b) => a.totalPenalty - b.totalPenalty);
 
     const winnerId = sortedPlayers[0].id;
@@ -752,6 +805,41 @@ export class GameService {
           isWinner: player.id === winnerId,
           penalty: player.totalPenalty,
         });
+
+        const existingStats = await this.prismaService.playerRoomStats.findUnique({
+          where: {
+            userId_roomId: {
+              userId: player.userId,
+              roomId: game.roomId,
+            },
+          },
+        });
+
+        await this.prismaService.playerRoomStats.upsert({
+          where: {
+            userId_roomId: {
+              userId: player.userId,
+              roomId: game.roomId,
+            },
+          },
+          create: {
+            userId: player.userId,
+            roomId: game.roomId,
+            gamesPlayed: 1,
+            gamesWon: player.isWinner ? 1 : 0,
+            totalPenalty: player.totalPenalty,
+            bestScore: player.totalPenalty,
+          },
+          update: {
+            gamesPlayed: { increment: 1 },
+            gamesWon: player.isWinner ? { increment: 1 } : undefined,
+            totalPenalty: { increment: player.totalPenalty },
+            bestScore: {
+              set: existingStats ? Math.min(player.totalPenalty, existingStats.totalPenalty) : player.totalPenalty,
+            },
+            lastPlayedAt: new Date(),
+          },
+        });
       }
     }
 
@@ -766,7 +854,7 @@ export class GameService {
     await this.prismaService.room.update({
       where: { id: game.roomId },
       data: {
-        status: 'FINISHED',
+        status: 'WAITING',
       },
     });
   }
@@ -793,5 +881,38 @@ export class GameService {
         isSelectedCardConfirmed: false,
       },
     });
+  }
+
+  async getRoundFinishedData(gameId: string): Promise<RoundFinishedData> {
+    const game = await this.prismaService.game.findUnique({
+      where: { id: gameId },
+      include: {
+        players: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!game) {
+      throw new NotFoundException('Game not found');
+    }
+
+    const gameState = await this.getGameState(gameId);
+
+    const playersRoundScores = game.players.map((player) => ({
+      playerId: player.id,
+      username: player.isBot ? (player.botName ?? 'Bot') : (player.user?.username ?? 'Unknown'),
+      roundPenalty: player.roundPenalty,
+      roundPenaltyCards: this.parseJsonArray<Card>(player.roundPenaltyCard),
+      totalPenalty: player.totalPenalty,
+    }));
+
+    return {
+      gameState,
+      roundNumber: game.currentRound,
+      playersRoundScores,
+    };
   }
 }

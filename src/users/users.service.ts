@@ -37,12 +37,9 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    const { username, password: notHashedPassword, confirmPassword } = dto;
-    const password = await this.hashPassword(notHashedPassword);
+    const { username, password, confirmPassword, surname, name, email } = dto;
 
-    const isPasswordMatched = await bcrypt.compare(confirmPassword, password);
-
-    if (!isPasswordMatched) {
+    if (password !== confirmPassword) {
       throw new HttpException(EErrorMessages.PASSWORD_DOESNT_MATCH, EErrorStatus.BAD_REQUEST);
     }
 
@@ -54,7 +51,11 @@ export class UsersService {
       throw new HttpException(EErrorMessages.USER_ALREADY_EXISTS, EErrorStatus.BAD_REQUEST);
     }
 
-    const user = await this.prisma.user.create({ data: { username, password } });
+    const hashedPassword = await this.hashPassword(password);
+
+    const user = await this.prisma.user.create({
+      data: { username, password: hashedPassword, surname, name, email },
+    });
 
     return new UserEntity(user);
   }

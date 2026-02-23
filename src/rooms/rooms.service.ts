@@ -1,14 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { RoomEntity } from './entities/room.entity';
 import { plainToInstance } from 'class-transformer';
 import { RoomDto } from './dto/room.dto';
+import * as bcrypt from 'bcryptjs';
+import { GameService } from '../game/game.service';
 
 @Injectable()
 export class RoomsService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    @Inject(forwardRef(() => GameService))
+    private readonly gameService: GameService
+  ) {}
 
   async findAll() {
     const rooms = await this.prismaService.room.findMany({
@@ -31,6 +37,9 @@ export class RoomsService {
       },
       omit: {
         creatorId: true,
+      },
+      orderBy: {
+        name: 'asc',
       },
     });
 
@@ -55,6 +64,9 @@ export class RoomsService {
               },
             },
           },
+          orderBy: {
+            position: 'asc',
+          },
         },
       },
     });
@@ -69,7 +81,7 @@ export class RoomsService {
   }
 
   async create(dto: CreateRoomDto, creatorId: string) {
-    const { name, code, maxPlayers, isPrivate } = dto;
+    const { name, code, maxPlayers, isPrivate, password } = dto;
 
     return this.prismaService.$transaction(async (tx) => {
       // 1. Проверяем, не находится ли пользователь уже в другой комнате
@@ -102,6 +114,14 @@ export class RoomsService {
         throw new BadRequestException(EErrorMessages.ROOM_ALREADY_EXISTS);
       }
 
+      let hashedPassword = '';
+
+      if (isPrivate) {
+        const salt = await bcrypt.genSalt(Number.parseInt(process.env.CRYPT_SALT ?? '10'));
+
+        hashedPassword = await bcrypt.hash(password, salt);
+      }
+
       // 3. Создаём комнату с currentPlayers = 1
       const createdRoom = await tx.room.create({
         data: {
@@ -110,6 +130,7 @@ export class RoomsService {
           maxPlayers,
           currentPlayers: 1, // ← Устанавливаем 1, так как создатель присоединяется
           isPrivate,
+          ...(isPrivate && { password: hashedPassword }),
           creator: {
             connect: { id: creatorId },
           },
@@ -194,20 +215,26 @@ export class RoomsService {
         throw new BadRequestException(EErrorMessages.ROOM_ALREADY_STARTED);
       }
 
-      // 3. Проверяем, что пользователь ещё не в этой комнате (двойная защита)
+      // 3. Проверяем лимит игроков
+      if (room.currentPlayers >= room.maxPlayers) {
+        throw new BadRequestException(EErrorMessages.ROOM_IS_FULL);
+      }
+
+      // 4. Проверяем, что пользователь ещё не в этой комнате (двойная защита)
       const alreadyPlayer = room.players.find((p) => p.userId === userId);
 
       if (alreadyPlayer) {
         throw new BadRequestException(EErrorMessages.ALREADY_IN_ROOM);
       }
 
-      // 4. Проверяем лимит игроков
-      if (room.players.length >= room.maxPlayers) {
-        throw new BadRequestException(EErrorMessages.ROOM_IS_FULL);
-      }
-
       // 5. Определяем позицию
-      const position = room.players.length + 1;
+      const occupiedPositions = new Set(room.players.map((p) => p.position));
+
+      let position = 1;
+
+      while (occupiedPositions.has(position)) {
+        position++;
+      }
 
       // 6. Создаём Player
       const newPlayer = await tx.player.create({
@@ -314,5 +341,48 @@ export class RoomsService {
 
       return { success: true, message: 'Successfully left the room' };
     });
+  }
+
+  async findActiveGame(roomId: string) {
+    const activeGame = await this.prismaService.game.findFirst({
+      where: { roomId, status: 'IN_PROGRESS' },
+      include: {
+        room: true,
+        players: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          omit: {
+            roomId: true,
+          },
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!activeGame) {
+      throw new NotFoundException(EErrorMessages.ACTIVE_GAME_NOT_FOUND);
+    }
+
+    return this.gameService.getGameState(activeGame.id);
+  }
+
+  async findRoomStats(roomId: string) {
+    const roomStats = await this.prismaService.roomStats.findUnique({
+      where: { roomId },
+    });
+
+    if (!roomStats) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
+    }
+
+    return roomStats;
   }
 }

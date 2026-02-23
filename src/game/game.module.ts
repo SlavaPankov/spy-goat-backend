@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { GameService } from './game.service';
 import { GameGateway } from './game.gateway';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -13,7 +13,7 @@ import { jwtConfigFactory } from '../auth/factory/JwtConfigFactory';
   imports: [
     PrismaModule,
     StatisticsModule,
-    RoomsModule,
+    forwardRef(() => RoomsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

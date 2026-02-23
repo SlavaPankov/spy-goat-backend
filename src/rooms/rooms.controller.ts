@@ -41,4 +41,14 @@ export class RoomsController {
   exit(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @CurrentUser('userId') userId: string) {
     return this.roomsService.exit(id, userId);
   }
+
+  @Get(':id/games/active')
+  findActiveGame(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.roomsService.findActiveGame(id);
+  }
+
+  @Get(':id/stats')
+  findRoomStats(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.roomsService.findRoomStats(id);
+  }
 }

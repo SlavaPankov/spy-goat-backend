@@ -35,7 +35,9 @@ export class AuthService {
     return this.userService.create(createUserDto);
   }
 
-  async verifyUserCredentials(loginDto: Omit<CreateUserDto, 'confirmPassword'>): Promise<User | null> {
+  async verifyUserCredentials(
+    loginDto: Omit<CreateUserDto, 'confirmPassword' | 'surname' | 'name' | 'email'>
+  ): Promise<User | null> {
     const createUser = await this.prisma.user.findUnique({
       where: { username: loginDto.username },
     });

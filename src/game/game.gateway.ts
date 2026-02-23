@@ -1,18 +1,19 @@
-// game.gateway.ts
 import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Card, GameService } from './game.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { SocketResponseBuilder } from './types/socket-response.types';
+import { SocketEvent } from './types/socket-event-enum.types';
 
 interface JoinRoomPayload {
   roomId: string;
@@ -32,19 +33,6 @@ interface ChooseRowPayload {
 interface GetGameStatePayload {
   gameId: string;
 }
-
-interface SuccessResponse<T = unknown> {
-  success: true;
-  data?: T;
-  message?: string;
-}
-
-interface ErrorResponse {
-  success: false;
-  error: string;
-}
-
-type Response<T = unknown> = SuccessResponse<T> | ErrorResponse;
 
 @WebSocketGateway(8082, { cors: true })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -79,7 +67,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  @SubscribeMessage('subscribeRoom')
+  private handleError(client: Socket, event: SocketEvent, error: unknown): void {
+    console.error(`Error in ${event}:`, error);
+    client.emit(event, SocketResponseBuilder.fromError(error));
+  }
+
+  private emitToRoom<T>(roomId: string, event: SocketEvent, data: T): void {
+    this.server.to(roomId).emit(event, SocketResponseBuilder.success(data));
+  }
+
+  @SubscribeMessage(SocketEvent.SUBSCRIBE_ROOM)
   async handleSubscribeRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: Pick<JoinRoomPayload, 'roomId'> & { gameId?: string }
@@ -88,118 +85,76 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await client.join(data.roomId);
       (client.data as Record<string, string>).roomId = data.roomId;
 
-      this.server.to(data.roomId).emit('playerSubscribed');
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_SUBSCRIBED, { roomId: data.roomId });
 
       if (data.gameId) {
         const gameState = await this.gameService.getGameState(data.gameId);
-
-        client.emit('gameStateChanged', gameState);
+        this.emitToRoom(data.roomId, SocketEvent.GAME_STATE_CHANGED, { gameState });
       }
-
-      return { success: true, message: 'Joined room' };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.PLAYER_SUBSCRIBED, error);
     }
   }
 
-  @SubscribeMessage('joinRoom')
-  async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload): Promise<Response> {
+  @SubscribeMessage(SocketEvent.JOIN_ROOM)
+  async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload) {
     try {
       await this.roomService.join(data.roomId, data.userId);
 
-      this.server.to(data.roomId).emit('playerJoined', {
-        userId: data.userId,
-      });
-
-      return { success: true, message: 'Joined room' };
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_JOINED, { userId: data.userId });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      console.log(errorMessage);
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.PLAYER_JOINED, error);
     }
   }
 
-  @SubscribeMessage('exitRoom')
-  async handleExitRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload): Promise<Response> {
+  @SubscribeMessage(SocketEvent.EXIT_ROOM)
+  async handleExitRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload) {
     try {
       await this.roomService.exit(data.roomId, data.userId);
-
-      this.server.to(data.roomId).emit('playerLeave', {
-        userId: data.userId,
-      });
-
-      return { success: true, message: 'Player leave' };
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_LEAVE, { userId: data.userId });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      console.log(errorMessage);
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.PLAYER_LEAVE, error);
     }
   }
 
-  @SubscribeMessage('ready')
+  @SubscribeMessage(SocketEvent.READY)
   async handleSetReady(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { roomId: string; playerId: string; isReady: boolean }
-  ): Promise<Response> {
+  ) {
     try {
       const updatedPlayer = await this.gameService.setIsReady(data.playerId, data.isReady);
-
-      this.server.to(data.roomId).emit('playerReady', {
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_READY, {
         playerId: updatedPlayer.id,
+        isReady: updatedPlayer.isReady,
       });
-
-      return { success: true, message: 'Player ready' };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      console.log(errorMessage);
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.PLAYER_READY, error);
     }
   }
 
-  @SubscribeMessage('startGame')
-  async handleStartGame(@ConnectedSocket() client: Socket, @MessageBody() data: StartGamePayload): Promise<void> {
+  @SubscribeMessage(SocketEvent.START_GAME)
+  async handleStartGame(@ConnectedSocket() client: Socket, @MessageBody() data: StartGamePayload) {
     try {
       const gameState = await this.gameService.startGame(data.roomId);
-
-      this.server.to(data.roomId).emit('gameStarted', gameState);
-
-      client.emit('gameStarted', gameState);
+      this.emitToRoom(data.roomId, SocketEvent.GAME_STARTED, gameState);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      client.emit('gameStarted', { success: false, error: errorMessage });
+      this.handleError(client, SocketEvent.GAME_STARTED, error);
     }
   }
 
-  @SubscribeMessage('selectCard')
-  async handleSelectCard(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { playerId: string; card: Card }
-  ): Promise<Response> {
+  @SubscribeMessage(SocketEvent.SELECT_CARD)
+  async handleSelectCard(@ConnectedSocket() client: Socket, @MessageBody() data: { playerId: string; card: Card }) {
     try {
       await this.gameService.selectCard(data.playerId, data.card);
-
-      client.emit('cardSelected', {
-        success: true,
-        card: data.card,
-      });
-
-      return { success: true, message: 'Card selected' };
+      client.emit(SocketEvent.CARD_SELECTED, SocketResponseBuilder.success({ card: data.card }));
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.CARD_SELECTED, error);
     }
   }
 
-  @SubscribeMessage('confirmCard')
-  async handleConfirmCard(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { playerId: string }
-  ): Promise<Response> {
+  @SubscribeMessage(SocketEvent.CONFIRM_CARD)
+  async handleConfirmCard(@ConnectedSocket() client: Socket, @MessageBody() data: { playerId: string }) {
     try {
       const result = await this.gameService.confirmCardChoice(data.playerId);
 
@@ -209,10 +164,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       if (!player) {
-        return { success: false, error: 'Player not found' };
+        this.handleError(client, SocketEvent.CARD_CONFIRMED, 'player not found');
+
+        return;
       }
 
-      this.server.to(player.room.id).emit('cardConfirmed', {
+      this.emitToRoom(player.room.id, SocketEvent.CARD_CONFIRMED, {
         playerId: data.playerId,
         card: player.selectedCard,
       });
@@ -220,9 +177,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (result.allReady) {
         const revealedCards = await this.gameService.revealCards(result.gameId);
 
-        this.server.to(player.room.id).emit('cardsRevealed', {
-          cards: revealedCards,
-        });
+        this.emitToRoom(player.room.id, SocketEvent.CARDS_REVEALED, { cards: revealedCards });
 
         setTimeout(() => {
           void (async () => {
@@ -230,84 +185,104 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               const turnResult = await this.gameService.startTurnProcessing(result.gameId);
 
               if (turnResult.action.actionType === 'choose_row') {
-                this.server.to(player.room.id).emit('needRowChoice', {
+                this.emitToRoom(player.room.id, SocketEvent.NEED_ROW_CHOICE, {
                   currentChoosingPlayer: turnResult.currentChoosingPlayer,
                   action: turnResult.action,
                   gameState: turnResult,
                 });
               } else {
-                // Все действия применены автоматически
-                this.server.to(player.room.id).emit('roundFinished', turnResult);
+                if (turnResult.isRoundFinished) {
+                  const roundData = await this.gameService.getRoundFinishedData(result.gameId);
 
+                  this.emitToRoom(player.room.id, SocketEvent.ROUND_FINISHED, roundData);
+                } else {
+                  // Обычное окончание хода
+                  this.emitToRoom(player.room.id, SocketEvent.TURN_FINISHED, { gameState: turnResult });
+                }
+
+                // Проверяем, закончилась ли игра
                 const allHandsEmpty = turnResult.players.every((p) => p.hand.length === 0);
 
                 if (allHandsEmpty) {
-                  this.server.to(player.room.id).emit('gameEnded', turnResult);
+                  // Ждём немного перед проверкой окончания игры (чтобы roundFinished успел отобразиться)
+                  setTimeout(() => {
+                    void (async () => {
+                      const gameState = await this.gameService.getGameState(result.gameId);
+
+                      if (gameState.status === 'FINISHED') {
+                        this.emitToRoom(player.room.id, SocketEvent.GAME_ENDED, { gameState });
+                      }
+                    })();
+                  }, 2000);
                 }
               }
             } catch (error) {
               console.error('Error processing turn:', error);
-              this.server.to(player.room.id).emit('error', {
-                message: 'Failed to process turn',
-              });
+              this.server.to(player.room.id).emit(SocketEvent.ERROR, SocketResponseBuilder.fromError(error));
             }
           })();
         }, 3000);
       }
-
-      return { success: true, data: result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.CARD_CONFIRMED, error);
     }
   }
 
-  @SubscribeMessage('chooseRow')
-  async handleChooseRow(@ConnectedSocket() client: Socket, @MessageBody() data: ChooseRowPayload): Promise<Response> {
+  @SubscribeMessage(SocketEvent.CHOOSE_ROW)
+  async handleChooseRow(@ConnectedSocket() client: Socket, @MessageBody() data: ChooseRowPayload) {
     try {
       const result = await this.gameService.chooseRow(data.gameId, data.playerId, data.rowIndex);
 
-      this.server.to(result.roomId).emit('rowChosen', {
+      this.emitToRoom(result.roomId, SocketEvent.ROW_CHOSEN, {
         playerId: data.playerId,
         rowIndex: data.rowIndex,
       });
 
       if (result.action?.actionType === 'choose_row') {
         // Следующий игрок тоже должен выбрать ряд
-        this.server.to(result.roomId).emit('needRowChoice', {
+        this.emitToRoom(result.roomId, SocketEvent.NEED_ROW_CHOICE, {
           currentChoosingPlayer: result.currentChoosingPlayer,
           action: result.action,
           gameState: result,
         });
       } else {
-        // Все действия применены - раунд завершен
-        this.server.to(result.roomId).emit('roundFinished', result);
-
         const allHandsEmpty = result.players.every((p) => p.hand.length === 0);
 
         if (allHandsEmpty) {
-          this.server.to(result.roomId).emit('gameEnded', result);
+          const roundData = await this.gameService.getRoundFinishedData(data.gameId);
+          this.emitToRoom(result.roomId, SocketEvent.ROUND_FINISHED, roundData);
+
+          // Проверяем окончание игры
+          setTimeout(() => {
+            void (async () => {
+              const gameState = await this.gameService.getGameState(data.gameId);
+
+              if (gameState.status === 'FINISHED') {
+                this.emitToRoom(result.roomId, SocketEvent.GAME_ENDED, { gameState });
+              }
+            })();
+          }, 2000);
+        } else {
+          this.emitToRoom(result.roomId, SocketEvent.TURN_FINISHED, { gameState: result });
         }
       }
-
-      return { success: true };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
+      this.handleError(client, SocketEvent.CHOOSE_ROW, error);
     }
   }
 
-  @SubscribeMessage('getGameState')
-  async handleGetGameState(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: GetGameStatePayload
-  ): Promise<Response> {
+  @SubscribeMessage(SocketEvent.GET_GAME_STATE)
+  async handleGetGameState(@ConnectedSocket() client: Socket, @MessageBody() data: GetGameStatePayload) {
     try {
       const gameState = await this.gameService.getGameState(data.gameId);
-      return { success: true, data: gameState };
+
+      this.emitToRoom(gameState.roomId, SocketEvent.GAME_STATE_CHANGED, { gameState });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
+
+      console.log(errorMessage);
+
+      return { event: 'getGameState', data: { success: false, error: errorMessage } };
     }
   }
 }

@@ -12,6 +12,15 @@ export class UserDto {
   version: number;
 
   @Expose()
+  name: string;
+
+  @Expose()
+  surname: string;
+
+  @Expose()
+  email: string;
+
+  @Expose()
   @IsoDate()
   createdAt: Date;
 
