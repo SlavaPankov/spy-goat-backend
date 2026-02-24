@@ -385,4 +385,19 @@ export class RoomsService {
 
     return roomStats;
   }
+
+  async findPlayerByUserId(roomId: string, userId: string) {
+    const player = await this.prismaService.player.findFirst({
+      where: {
+        userId,
+        roomId,
+      },
+    });
+
+    if (!player) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
+    }
+
+    return player;
+  }
 }

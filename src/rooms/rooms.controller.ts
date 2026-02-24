@@ -51,4 +51,12 @@ export class RoomsController {
   findRoomStats(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.roomsService.findRoomStats(id);
   }
+
+  @Get(':id/user/:userId/player')
+  findPlayerByUserId(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string
+  ) {
+    return this.roomsService.findPlayerByUserId(id, userId);
+  }
 }

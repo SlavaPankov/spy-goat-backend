@@ -34,6 +34,12 @@ interface GetGameStatePayload {
   gameId: string;
 }
 
+enum SocketConnectionError {
+  NO_TOKEN = 'NO_TOKEN',
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  TOKEN_INVALID = 'TOKEN_INVALID',
+}
+
 @WebSocketGateway(8082, { cors: true })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -50,15 +56,42 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token: string = (client.handshake.auth.token || client.handshake.headers.authorization) as string;
 
       if (!token) {
-        return new Error('No token provided');
+        console.log('❌ No token provided');
+
+        client.emit('auth_error', {
+          code: SocketConnectionError.NO_TOKEN,
+          message: 'No token provided',
+        });
+
+        client.disconnect();
+        return;
       }
 
       const payload = this.jwtService.verify<JwtPayload>(token);
 
       (client.data as Record<string, string>).userId = payload.userId;
 
-      console.log(`Client connected: ${client.id}, userId: ${payload.userId}`);
-    } catch {
+      console.log(`✅ Client connected: ${client.id}, userId: ${payload.userId}`);
+    } catch (err) {
+      console.error('❌ Connection error:', err);
+
+      let errorCode = SocketConnectionError.TOKEN_INVALID;
+      let errorMessage = 'Token is invalid';
+
+      if (err instanceof Error) {
+        if (err.name === 'TokenExpiredError') {
+          errorCode = SocketConnectionError.TOKEN_EXPIRED;
+          errorMessage = 'Token has expired';
+        } else if (err.name === 'JsonWebTokenError') {
+          errorCode = SocketConnectionError.TOKEN_INVALID;
+        }
+      }
+
+      client.emit('auth_error', {
+        code: errorCode,
+        message: errorMessage,
+      });
+
       client.disconnect();
     }
   }
@@ -89,6 +122,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (data.gameId) {
         const gameState = await this.gameService.getGameState(data.gameId);
+
         this.emitToRoom(data.roomId, SocketEvent.GAME_STATE_CHANGED, { gameState });
       }
     } catch (error) {
@@ -192,9 +226,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 });
               } else {
                 if (turnResult.isRoundFinished) {
-                  const roundData = await this.gameService.getRoundFinishedData(result.gameId);
-
-                  this.emitToRoom(player.room.id, SocketEvent.ROUND_FINISHED, roundData);
+                  this.emitToRoom(player.room.id, SocketEvent.ROUND_FINISHED, turnResult.roundData);
                 } else {
                   // Обычное окончание хода
                   this.emitToRoom(player.room.id, SocketEvent.TURN_FINISHED, { gameState: turnResult });
@@ -248,20 +280,21 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       } else {
         const allHandsEmpty = result.players.every((p) => p.hand.length === 0);
 
-        if (allHandsEmpty) {
-          const roundData = await this.gameService.getRoundFinishedData(data.gameId);
-          this.emitToRoom(result.roomId, SocketEvent.ROUND_FINISHED, roundData);
+        if (allHandsEmpty && result.isRoundFinished && result.roundData) {
+          // ✅ Данные уже получены!
+          this.emitToRoom(result.roomId, SocketEvent.ROUND_FINISHED, result.roundData);
 
-          // Проверяем окончание игры
-          setTimeout(() => {
-            void (async () => {
-              const gameState = await this.gameService.getGameState(data.gameId);
+          setTimeout(
+            () =>
+              void (async () => {
+                const gameState = await this.gameService.getGameState(data.gameId);
 
-              if (gameState.status === 'FINISHED') {
-                this.emitToRoom(result.roomId, SocketEvent.GAME_ENDED, { gameState });
-              }
-            })();
-          }, 2000);
+                if (gameState.status === 'FINISHED') {
+                  this.emitToRoom(result.roomId, SocketEvent.GAME_ENDED, { gameState });
+                }
+              })(),
+            2000
+          );
         } else {
           this.emitToRoom(result.roomId, SocketEvent.TURN_FINISHED, { gameState: result });
         }

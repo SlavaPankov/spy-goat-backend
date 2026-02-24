@@ -53,7 +53,7 @@ export interface GameState {
 export interface RoundFinishedData {
   gameState: GameState;
   roundNumber: number;
-  playersRoundScores: {
+  playerRoundScores: {
     playerId: string;
     username: string;
     roundPenalty: number;
@@ -443,7 +443,9 @@ export class GameService {
     return this.parseJsonArray<PlayedCard>(game.currentTurnCards);
   }
 
-  async startTurnProcessing(gameId: string): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean }> {
+  async startTurnProcessing(
+    gameId: string
+  ): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean; roundData?: RoundFinishedData }> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: { players: true },
@@ -466,20 +468,24 @@ export class GameService {
     return this.processNextPlayer(gameId);
   }
 
-  async processNextPlayer(gameId: string): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean }> {
+  async processNextPlayer(gameId: string): Promise<
+    GameState & {
+      action: TurnAction;
+      isRoundFinished?: boolean;
+      roundData?: RoundFinishedData;
+    }
+  > {
     const pending = this.pendingPlayers.get(gameId);
 
     if (!pending || pending.length === 0) {
-      // Все игроки обработаны - завершаем ход
-      const { isGameEnded } = await this.finishRound(gameId);
+      const { isRoundFinished, roundData } = await this.finishRound(gameId);
       const gameState = await this.getGameState(gameId);
-
-      const allHandsEmpty = gameState.players.every((p) => p.hand.length === 0);
 
       return {
         ...gameState,
         action: { playerId: '', actionType: 'place' },
-        isRoundFinished: allHandsEmpty && !isGameEnded,
+        isRoundFinished,
+        roundData,
       };
     }
 
@@ -493,27 +499,19 @@ export class GameService {
 
     const rows = this.parseJsonArray<Card[]>(game.rows);
 
-    // Берем первого игрока из очереди
     const currentPlayer = pending[0];
     this.currentProcessingPlayer.set(gameId, currentPlayer);
 
-    // Вычисляем action для этого игрока на ТЕКУЩЕМ состоянии стола
     const action = this.calculateActionForPlayer(currentPlayer, rows);
     this.currentAction.set(gameId, action);
 
     if (action.actionType === 'place' || action.actionType === 'take_row') {
-      // Применяем действие сразу
       await this.applyAction(gameId, action);
-
-      // Удаляем игрока из очереди
       pending.shift();
       this.pendingPlayers.set(gameId, pending);
-
-      // Переходим к следующему игроку
       return this.processNextPlayer(gameId);
     }
 
-    // Если choose_row - ждем выбора игрока
     const gameState = await this.getGameState(gameId);
     return {
       ...gameState,
@@ -588,7 +586,17 @@ export class GameService {
     }
   }
 
-  async chooseRow(gameId: string, playerId: string, rowIndex: number): Promise<GameState & { action?: TurnAction }> {
+  async chooseRow(
+    gameId: string,
+    playerId: string,
+    rowIndex: number
+  ): Promise<
+    GameState & {
+      action: TurnAction;
+      isRoundFinished?: boolean;
+      roundData?: RoundFinishedData;
+    }
+  > {
     const currentPlayer = this.currentProcessingPlayer.get(gameId);
     const currentAction = this.currentAction.get(gameId);
 
@@ -666,14 +674,18 @@ export class GameService {
     return this.processNextPlayer(gameId);
   }
 
-  private async finishRound(gameId: string): Promise<{ isGameEnded: boolean }> {
+  private async finishRound(gameId: string): Promise<{
+    isGameEnded: boolean;
+    isRoundFinished: boolean;
+    roundData?: RoundFinishedData; // 🆕 Возвращаем данные раунда
+  }> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: { players: true },
     });
 
     if (!game) {
-      return { isGameEnded: false };
+      return { isGameEnded: false, isRoundFinished: false };
     }
 
     this.pendingPlayers.delete(gameId);
@@ -700,12 +712,18 @@ export class GameService {
     });
 
     if (allHandsEmpty) {
+      const roundData = await this.getRoundFinishedData(gameId);
+
       const isGameEnded = await this.checkGameEnd(gameId);
 
-      return { isGameEnded };
+      return {
+        isGameEnded,
+        isRoundFinished: !isGameEnded,
+        roundData: isGameEnded ? undefined : roundData,
+      };
     }
 
-    return { isGameEnded: false };
+    return { isGameEnded: false, isRoundFinished: false };
   }
 
   async checkGameEnd(gameId: string): Promise<boolean> {
@@ -912,7 +930,7 @@ export class GameService {
     return {
       gameState,
       roundNumber: game.currentRound,
-      playersRoundScores,
+      playerRoundScores: playersRoundScores,
     };
   }
 }
