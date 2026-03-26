@@ -7,10 +7,12 @@ import {
   ParseUUIDPipe,
   Post,
   UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RoomStatus } from '@prisma/client';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -18,8 +20,14 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Get()
-  findAll() {
-    return this.roomsService.findAll();
+  findAll(
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('size') size?: number,
+    @Query('status') status?: RoomStatus,
+    @Query('privacy') privacy?: string
+  ) {
+    return this.roomsService.findAll({ search, page, status, privacy, size });
   }
 
   @Get(':id')

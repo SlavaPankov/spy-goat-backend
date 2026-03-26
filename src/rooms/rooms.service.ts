@@ -7,6 +7,7 @@ import { plainToInstance } from 'class-transformer';
 import { RoomDto } from './dto/room.dto';
 import * as bcrypt from 'bcryptjs';
 import { GameService } from '../game/game.service';
+import { RoomStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class RoomsService {
@@ -16,34 +17,85 @@ export class RoomsService {
     private readonly gameService: GameService
   ) {}
 
-  async findAll() {
-    const rooms = await this.prismaService.room.findMany({
-      include: {
-        creator: true,
-        players: {
-          omit: {
-            userId: true,
-            roomId: true,
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
+  private DEFAULT_PAGE_SIZE = 9;
+
+  async findAll({
+    search,
+    page,
+    size,
+    status,
+    privacy,
+  }: {
+    search?: string;
+    page?: number;
+    size?: number;
+    status?: RoomStatus | 'all';
+    privacy?: string;
+  }) {
+    const where: Prisma.RoomWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: search.trim().split(' ').filter(Boolean).join(' & '),
+                  mode: 'insensitive',
+                },
+              },
+              {
+                code: {
+                  contains: search.trim().split(' ').filter(Boolean).join(' | '),
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : undefined),
+      ...(status && status !== 'all' && { status }),
+      ...(privacy && privacy !== 'all' && { isPrivate: privacy === 'private' }),
+    };
+
+    const [rooms, total] = await Promise.all([
+      this.prismaService.room.findMany({
+        where,
+        include: {
+          creator: true,
+          players: {
+            omit: {
+              userId: true,
+              roomId: true,
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                },
               },
             },
           },
         },
-      },
-      omit: {
-        creatorId: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+        omit: {
+          creatorId: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+        skip: (page ?? 0) * (size ?? this.DEFAULT_PAGE_SIZE),
+        take: size,
+      }),
+      this.prismaService.room.count({ where }),
+    ]);
 
-    return plainToInstance(RoomDto, rooms);
+    return {
+      data: plainToInstance(RoomDto, rooms),
+      meta: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / (size ?? this.DEFAULT_PAGE_SIZE)),
+      },
+    };
   }
 
   async findOne(id: string) {
