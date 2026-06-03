@@ -7,7 +7,7 @@ import { plainToInstance } from 'class-transformer';
 import { RoomDto } from './dto/room.dto';
 import * as bcrypt from 'bcryptjs';
 import { GameService } from '../game/game.service';
-import { RoomStatus, Prisma } from '@prisma/client';
+import { Prisma, RoomStatus } from '@prisma/client';
 
 @Injectable()
 export class RoomsService {
@@ -17,7 +17,7 @@ export class RoomsService {
     private readonly gameService: GameService
   ) {}
 
-  private DEFAULT_PAGE_SIZE = 9;
+  private readonly DEFAULT_PAGE_SIZE = 9;
 
   async findAll({
     search,
@@ -25,29 +25,24 @@ export class RoomsService {
     size,
     status,
     privacy,
+    userId,
   }: {
     search?: string;
     page?: number;
     size?: number;
     status?: RoomStatus | 'all';
     privacy?: string;
+    userId?: string;
   }) {
+    const pageNum = page ?? 0;
+    const pageSize = size ?? this.DEFAULT_PAGE_SIZE;
+
     const where: Prisma.RoomWhereInput = {
       ...(search
         ? {
             OR: [
-              {
-                name: {
-                  contains: search.trim().split(' ').filter(Boolean).join(' & '),
-                  mode: 'insensitive',
-                },
-              },
-              {
-                code: {
-                  contains: search.trim().split(' ').filter(Boolean).join(' | '),
-                  mode: 'insensitive',
-                },
-              },
+              { name: { contains: search.trim().split(' ').filter(Boolean).join(' & '), mode: 'insensitive' } },
+              { code: { contains: search.trim().split(' ').filter(Boolean).join(' | '), mode: 'insensitive' } },
             ],
           }
         : undefined),
@@ -55,45 +50,64 @@ export class RoomsService {
       ...(privacy && privacy !== 'all' && { isPrivate: privacy === 'private' }),
     };
 
+    const includeConfig = {
+      creator: true,
+      players: {
+        omit: { userId: true, roomId: true },
+        include: {
+          user: { select: { id: true, username: true } },
+        },
+      },
+    };
+
+    const userRoom = userId
+      ? await this.prismaService.room.findFirst({
+          where: { ...where, players: { some: { userId } } },
+          include: includeConfig,
+          omit: { creatorId: true },
+          orderBy: { name: 'asc' },
+        })
+      : null;
+
+    const whereOthers: Prisma.RoomWhereInput = userRoom ? { ...where, id: { not: userRoom.id } } : where;
+
+    let skip: number;
+    let take: number;
+
+    if (userRoom) {
+      if (pageNum === 0) {
+        skip = 0;
+        take = pageSize - 1;
+      } else {
+        skip = pageNum * pageSize - 1;
+        take = pageSize;
+      }
+    } else {
+      skip = pageNum * pageSize;
+      take = pageSize;
+    }
+
     const [rooms, total] = await Promise.all([
       this.prismaService.room.findMany({
-        where,
-        include: {
-          creator: true,
-          players: {
-            omit: {
-              userId: true,
-              roomId: true,
-            },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  username: true,
-                },
-              },
-            },
-          },
-        },
-        omit: {
-          creatorId: true,
-        },
-        orderBy: {
-          name: 'asc',
-        },
-        skip: (page ?? 0) * (size ?? this.DEFAULT_PAGE_SIZE),
-        take: size,
+        where: whereOthers,
+        include: includeConfig,
+        omit: { creatorId: true },
+        orderBy: { name: 'asc' },
+        skip,
+        take,
       }),
       this.prismaService.room.count({ where }),
     ]);
 
+    const data = userRoom ? [userRoom, ...rooms] : rooms;
+
     return {
-      data: plainToInstance(RoomDto, rooms),
+      data: plainToInstance(RoomDto, data),
       meta: {
         total,
-        page,
-        size,
-        totalPages: Math.ceil(total / (size ?? this.DEFAULT_PAGE_SIZE)),
+        page: pageNum,
+        size: pageSize,
+        totalPages: Math.ceil(total / pageSize),
       },
     };
   }
@@ -438,11 +452,10 @@ export class RoomsService {
     return roomStats;
   }
 
-  async findPlayerByUserId(roomId: string, userId: string) {
+  async findPlayerByUserId(userId: string) {
     const player = await this.prismaService.player.findFirst({
       where: {
         userId,
-        roomId,
       },
     });
 
@@ -451,5 +464,63 @@ export class RoomsService {
     }
 
     return player;
+  }
+
+  async verifyRoomPassword(roomId: string, password: string, userId?: string): Promise<boolean> {
+    const room = await this.prismaService.room.findUnique({
+      where: { id: roomId },
+      select: {
+        id: true,
+        isPrivate: true,
+        password: true,
+        creatorId: true,
+      },
+    });
+
+    if (!room) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    if ((userId && userId === room.creatorId) || !room.isPrivate) {
+      return true;
+    }
+
+    if (!room.password) {
+      throw new BadRequestException(EErrorMessages.ROOM_WITHOUT_PASSWORD);
+    }
+
+    return await bcrypt.compare(password, room.password);
+  }
+
+  async findRoomByUserId(userId: string) {
+    const room = await this.prismaService.room.findFirst({
+      where: { players: { some: { userId } } },
+      include: {
+        creator: true,
+        players: {
+          omit: {
+            userId: true,
+            roomId: true,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!room) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    return room;
   }
 }

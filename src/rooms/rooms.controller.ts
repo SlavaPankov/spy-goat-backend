@@ -8,11 +8,14 @@ import {
   Post,
   UseInterceptors,
   Query,
+  UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { RoomStatus } from '@prisma/client';
+import JwtAuthGuard from '../auth/guards/jwtAuth.guard';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -25,9 +28,15 @@ export class RoomsController {
     @Query('page') page?: number,
     @Query('size') size?: number,
     @Query('status') status?: RoomStatus,
-    @Query('privacy') privacy?: string
+    @Query('privacy') privacy?: string,
+    @CurrentUser() user?: JwtPayload
   ) {
-    return this.roomsService.findAll({ search, page, status, privacy, size });
+    return this.roomsService.findAll({ search, page, status, privacy, size, userId: user?.userId });
+  }
+
+  @Get('my-room')
+  async findRoomByUserId(@CurrentUser() user: JwtPayload) {
+    return this.roomsService.findRoomByUserId(user.userId);
   }
 
   @Get(':id')
@@ -60,11 +69,28 @@ export class RoomsController {
     return this.roomsService.findRoomStats(id);
   }
 
-  @Get(':id/user/:userId/player')
-  findPlayerByUserId(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string
+  @Get('user/:userId/player')
+  findPlayerByUserId(@Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string) {
+    return this.roomsService.findPlayerByUserId(userId);
+  }
+
+  @Post(':id/verify-password')
+  @UseGuards(JwtAuthGuard)
+  async verifyPassword(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) roomId: string,
+    @Body() dto: { password: string },
+    @CurrentUser() user: JwtPayload
   ) {
-    return this.roomsService.findPlayerByUserId(id, userId);
+    const isValid = await this.roomsService.verifyRoomPassword(roomId, dto.password, user.userId);
+
+    if (!isValid) {
+      throw new BadRequestException('Incorrect password');
+    }
+
+    return {
+      success: true,
+      message: 'Password verified',
+      roomId,
+    };
   }
 }

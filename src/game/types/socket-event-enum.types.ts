@@ -4,6 +4,7 @@ export const enum SocketEvent {
   PLAYER_SUBSCRIBED = 'playerSubscribed',
   JOIN_ROOM = 'joinRoom',
   PLAYER_JOINED = 'playerJoined',
+  PLAYER_JOINED_ERROR = 'playerJoinedError',
   EXIT_ROOM = 'exitRoom',
   PLAYER_LEAVE = 'playerLeave',
 

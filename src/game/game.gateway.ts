@@ -137,7 +137,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_JOINED, { userId: data.userId });
     } catch (error) {
-      this.handleError(client, SocketEvent.PLAYER_JOINED, error);
+      this.handleError(client, SocketEvent.PLAYER_JOINED_ERROR, error);
     }
   }
 
@@ -157,8 +157,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; playerId: string; isReady: boolean }
   ) {
     try {
+      const room = await this.roomService.findOne(data.roomId);
+
       const updatedPlayer = await this.gameService.setIsReady(data.playerId, data.isReady);
+
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_READY, {
+        room,
         playerId: updatedPlayer.id,
         isReady: updatedPlayer.isReady,
       });
