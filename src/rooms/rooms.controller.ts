@@ -39,9 +39,16 @@ export class RoomsController {
     return this.roomsService.findRoomByUserId(user.userId);
   }
 
-  @Get(':id')
-  findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return this.roomsService.findOne(id);
+  @Get(':id/details')
+  async findOneDetails(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    return this.roomsService.findOneDetails(id);
+  }
+
+  @Get(':id/players')
+  findRoomPlayers(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.roomsService.findRoomPlayers(id);
   }
 
   @Post()
@@ -69,9 +76,12 @@ export class RoomsController {
     return this.roomsService.findRoomStats(id);
   }
 
-  @Get('user/:userId/player')
-  findPlayerByUserId(@Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string) {
-    return this.roomsService.findPlayerByUserId(userId);
+  @Get(':id/user/:userId/player')
+  findPlayerByUserId(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string
+  ) {
+    return this.roomsService.findPlayerByUserId(id, userId);
   }
 
   @Post(':id/verify-password')
@@ -92,5 +102,10 @@ export class RoomsController {
       message: 'Password verified',
       roomId,
     };
+  }
+
+  @Get(':id/has-access')
+  checkIsPrivateRoom(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @CurrentUser() user: JwtPayload) {
+    return this.roomsService.checkHasAccess(id, user.userId);
   }
 }

@@ -8,6 +8,9 @@ import { RoomDto } from './dto/room.dto';
 import * as bcrypt from 'bcryptjs';
 import { GameService } from '../game/game.service';
 import { Prisma, RoomStatus } from '@prisma/client';
+import { PlayerDto } from '../common/dto/player.dto';
+import { RoomDetailsDto } from './dto/room-details.dto';
+import { RoomPlayersDto } from './dto/room-players.dto';
 
 @Injectable()
 export class RoomsService {
@@ -144,6 +147,52 @@ export class RoomsService {
     currentRoom.players.sort((a, b) => b.position - a.position);
 
     return plainToInstance(RoomDto, currentRoom);
+  }
+
+  async findOneDetails(id: string) {
+    const currentRoom = await this.prismaService.room.findUnique({
+      where: { id },
+      include: {
+        creator: true,
+      },
+    });
+
+    if (!currentRoom) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    return plainToInstance(RoomDetailsDto, currentRoom);
+  }
+
+  async findRoomPlayers(id: string) {
+    const currentRoom = await this.prismaService.room.findUnique({
+      where: { id },
+      include: {
+        players: {
+          omit: {
+            userId: true,
+            roomId: true,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!currentRoom) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    return plainToInstance(RoomPlayersDto, currentRoom, { excludeExtraneousValues: true });
   }
 
   async create(dto: CreateRoomDto, creatorId: string) {
@@ -452,10 +501,17 @@ export class RoomsService {
     return roomStats;
   }
 
-  async findPlayerByUserId(userId: string) {
+  async findPlayerByUserId(roomId: string, userId: string) {
     const player = await this.prismaService.player.findFirst({
       where: {
         userId,
+        roomId,
+      },
+      omit: {
+        finalPosition: true,
+        totalPenalty: true,
+        userId: true,
+        selectedCard: true,
       },
     });
 
@@ -463,7 +519,7 @@ export class RoomsService {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
-    return player;
+    return plainToInstance(PlayerDto, player, { excludeExtraneousValues: true });
   }
 
   async verifyRoomPassword(roomId: string, password: string, userId?: string): Promise<boolean> {
@@ -522,5 +578,21 @@ export class RoomsService {
     }
 
     return room;
+  }
+
+  async checkHasAccess(id: string, userId: string) {
+    const currentRoom = await this.prismaService.room.findFirst({
+      where: { id },
+    });
+
+    if (!currentRoom) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    if (!currentRoom.isPrivate) {
+      return true;
+    } else {
+      return currentRoom.creatorId === userId;
+    }
   }
 }
