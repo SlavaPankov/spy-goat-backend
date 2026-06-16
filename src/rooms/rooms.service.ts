@@ -339,6 +339,42 @@ export class RoomsService {
         },
       });
 
+      // 8. Создаем статистику игрока в комнате
+      const existingStats = await this.prismaService.playerRoomStats.findUnique({
+        where: {
+          userId_roomId: {
+            userId,
+            roomId,
+          },
+        },
+      });
+
+      await this.prismaService.playerRoomStats.upsert({
+        where: {
+          userId_roomId: {
+            userId,
+            roomId,
+          },
+        },
+        create: {
+          userId,
+          roomId,
+          gamesPlayed: 0,
+          gamesWon: newPlayer.isWinner ? 1 : 0,
+          totalPenalty: newPlayer.totalPenalty,
+          bestScore: newPlayer.totalPenalty,
+        },
+        update: {
+          gamesPlayed: { increment: 1 },
+          gamesWon: newPlayer.isWinner ? { increment: 1 } : undefined,
+          totalPenalty: { increment: newPlayer.totalPenalty },
+          bestScore: {
+            set: existingStats ? Math.min(newPlayer.totalPenalty, existingStats.totalPenalty) : newPlayer.totalPenalty,
+          },
+          lastPlayedAt: new Date(),
+        },
+      });
+
       return newPlayer;
     });
   }
@@ -412,7 +448,25 @@ export class RoomsService {
         });
       }
 
-      // 8. Если комната пустая - удалить её
+      // 8. Удаляем статистику игрока в комнате
+      const existingStats = await this.prismaService.playerRoomStats.findUnique({
+        where: {
+          userId_roomId: {
+            userId,
+            roomId,
+          },
+        },
+      });
+
+      if (existingStats) {
+        await tx.playerRoomStats.delete({
+          where: {
+            userId_roomId: { userId, roomId },
+          },
+        });
+      }
+
+      // 9. Если комната пустая - удалить её
       if (remainingPlayers.length === 0) {
         await tx.room.delete({
           where: { id: roomId },
