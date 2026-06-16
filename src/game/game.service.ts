@@ -136,7 +136,7 @@ export class GameService {
 
     let index = 0;
 
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 1; i += 1) {
       for (let p = 0; p < playerCount; p++) {
         index += 1;
 
@@ -515,12 +515,13 @@ export class GameService {
       action: TurnAction;
       isRoundFinished?: boolean;
       roundData?: RoundFinishedData;
+      isGameEnded?: boolean;
     }
   > {
     const pending = this.pendingPlayers.get(gameId);
 
     if (!pending || pending.length === 0) {
-      const { isRoundFinished, roundData } = await this.finishRound(gameId);
+      const { isRoundFinished, roundData, isGameEnded } = await this.finishRound(gameId);
       const gameState = await this.getGameState(gameId);
 
       return {
@@ -528,6 +529,7 @@ export class GameService {
         action: { playerId: '', actionType: 'place' },
         isRoundFinished,
         roundData,
+        isGameEnded,
       };
     }
 

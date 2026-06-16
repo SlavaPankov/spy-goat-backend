@@ -8,7 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Card, GameService } from './game.service';
+import { Card, GameService, GameState, RoundFinishedData } from './game.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -107,6 +107,23 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private emitToRoom<T>(roomId: string, event: SocketEvent, data: T): void {
     this.server.to(roomId).emit(event, SocketResponseBuilder.success(data));
+  }
+
+  private emitTurnResult(
+    roomId: string,
+    result: GameState & { isRoundFinished?: boolean; isGameEnded?: boolean; roundData?: RoundFinishedData }
+  ): void {
+    if (result.isGameEnded) {
+      this.emitToRoom(roomId, SocketEvent.GAME_ENDED, { gameState: result });
+      return;
+    }
+
+    if (result.isRoundFinished && result.roundData) {
+      this.emitToRoom(roomId, SocketEvent.ROUND_FINISHED, result.roundData);
+      return;
+    }
+
+    this.emitToRoom(roomId, SocketEvent.TURN_FINISHED, { gameState: result });
   }
 
   @SubscribeMessage(SocketEvent.SUBSCRIBE_ROOM)
@@ -258,28 +275,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                   gameState: turnResult,
                 });
               } else {
-                if (turnResult.isRoundFinished) {
-                  this.emitToRoom(data.roomId, SocketEvent.ROUND_FINISHED, turnResult.roundData);
-                } else {
-                  // Обычное окончание хода
-                  this.emitToRoom(data.roomId, SocketEvent.TURN_FINISHED, { gameState: turnResult });
-                }
-
-                // Проверяем, закончилась ли игра
-                const allHandsEmpty = turnResult.players.every((p) => p.hand.length === 0);
-
-                if (allHandsEmpty) {
-                  // Ждём немного перед проверкой окончания игры (чтобы roundFinished успел отобразиться)
-                  setTimeout(() => {
-                    void (async () => {
-                      const gameState = await this.gameService.getGameState(result.gameId);
-
-                      if (gameState.status === 'FINISHED') {
-                        this.emitToRoom(data.roomId, SocketEvent.GAME_ENDED, { gameState });
-                      }
-                    })();
-                  }, 2000);
-                }
+                this.emitTurnResult(data.roomId, turnResult);
               }
             } catch (error) {
               console.error('Error processing turn:', error);
@@ -339,26 +335,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           gameState: result,
         });
       } else {
-        const allHandsEmpty = result.players.every((p) => p.hand.length === 0);
-
-        if (allHandsEmpty && result.isRoundFinished && result.roundData) {
-          // ✅ Данные уже получены!
-          this.emitToRoom(result.roomId, SocketEvent.ROUND_FINISHED, result.roundData);
-
-          setTimeout(
-            () =>
-              void (async () => {
-                const gameState = await this.gameService.getGameState(data.gameId);
-
-                if (gameState.status === 'FINISHED') {
-                  this.emitToRoom(result.roomId, SocketEvent.GAME_ENDED, { gameState });
-                }
-              })(),
-            2000
-          );
-        } else {
-          this.emitToRoom(result.roomId, SocketEvent.TURN_FINISHED, { gameState: result });
-        }
+        this.emitTurnResult(result.roomId, result);
       }
     } catch (error) {
       this.handleError(client, SocketEvent.CHOOSE_ROW, error);
