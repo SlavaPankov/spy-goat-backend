@@ -135,7 +135,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       await this.roomService.join(data.roomId, data.userId);
 
-      this.emitToRoom(data.roomId, SocketEvent.PLAYER_JOINED, { userId: data.userId });
+      const [roomDetails, roomPlayers] = await Promise.all([
+        this.roomService.findOneDetails(data.roomId),
+        this.roomService.findRoomPlayers(data.roomId),
+      ]);
+
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_JOINED, { roomDetails, roomPlayers });
     } catch (error) {
       this.handleError(client, SocketEvent.PLAYER_JOINED_ERROR, error);
     }
@@ -145,9 +150,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleExitRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload) {
     try {
       await this.roomService.exit(data.roomId, data.userId);
-      this.emitToRoom(data.roomId, SocketEvent.PLAYER_LEAVE, { userId: data.userId });
+
+      const [roomDetails, roomPlayers] = await Promise.all([
+        this.roomService.findOneDetails(data.roomId),
+        this.roomService.findRoomPlayers(data.roomId),
+      ]);
+
+      this.emitToRoom(data.roomId, SocketEvent.PLAYER_LEAVE, { roomDetails, roomPlayers });
     } catch (error) {
-      this.handleError(client, SocketEvent.PLAYER_LEAVE, error);
+      this.handleError(client, SocketEvent.PLAYER_LEAVE_ERROR, error);
     }
   }
 
@@ -157,17 +168,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; playerId: string; isReady: boolean }
   ) {
     try {
-      const room = await this.roomService.findOne(data.roomId);
+      await this.gameService.setIsReady(data.playerId, data.isReady);
 
-      const updatedPlayer = await this.gameService.setIsReady(data.playerId, data.isReady);
+      const [roomDetails, roomPlayers] = await Promise.all([
+        this.roomService.findOneDetails(data.roomId),
+        this.roomService.findRoomPlayers(data.roomId),
+      ]);
 
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_READY, {
-        room,
-        playerId: updatedPlayer.id,
-        isReady: updatedPlayer.isReady,
+        roomDetails,
+        roomPlayers,
       });
     } catch (error) {
-      this.handleError(client, SocketEvent.PLAYER_READY, error);
+      this.handleError(client, SocketEvent.PLAYER_READY_ERROR, error);
     }
   }
 

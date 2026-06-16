@@ -6,7 +6,9 @@ export const enum SocketEvent {
   PLAYER_JOINED = 'playerJoined',
   PLAYER_JOINED_ERROR = 'playerJoinedError',
   EXIT_ROOM = 'exitRoom',
+
   PLAYER_LEAVE = 'playerLeave',
+  PLAYER_LEAVE_ERROR = 'playerLeaveError',
 
   // Game lifecycle
   START_GAME = 'startGame',
@@ -32,7 +34,9 @@ export const enum SocketEvent {
 
   // Player state
   READY = 'ready',
+
   PLAYER_READY = 'playerReady',
+  PLAYER_READY_ERROR = 'playerReadyError',
 
   // Errors
   ERROR = 'error',

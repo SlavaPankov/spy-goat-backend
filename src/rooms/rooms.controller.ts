@@ -41,8 +41,6 @@ export class RoomsController {
 
   @Get(':id/details')
   async findOneDetails(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
     return this.roomsService.findOneDetails(id);
   }
 

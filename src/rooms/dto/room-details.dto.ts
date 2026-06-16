@@ -22,6 +22,9 @@ export class RoomDetailsDto {
   status: string;
 
   @Expose()
+  currentPlayers: number;
+
+  @Expose()
   @IsoDate()
   createdAt: Date;
 

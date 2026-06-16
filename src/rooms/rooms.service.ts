@@ -115,40 +115,6 @@ export class RoomsService {
     };
   }
 
-  async findOne(id: string) {
-    const currentRoom = await this.prismaService.room.findUnique({
-      where: { id },
-      include: {
-        creator: true,
-        players: {
-          omit: {
-            userId: true,
-            roomId: true,
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-              },
-            },
-          },
-          orderBy: {
-            position: 'asc',
-          },
-        },
-      },
-    });
-
-    if (!currentRoom) {
-      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
-    }
-
-    currentRoom.players.sort((a, b) => b.position - a.position);
-
-    return plainToInstance(RoomDto, currentRoom);
-  }
-
   async findOneDetails(id: string) {
     const currentRoom = await this.prismaService.room.findUnique({
       where: { id },
@@ -161,7 +127,7 @@ export class RoomsService {
       throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
     }
 
-    return plainToInstance(RoomDetailsDto, currentRoom);
+    return plainToInstance(RoomDetailsDto, currentRoom, { excludeExtraneousValues: true });
   }
 
   async findRoomPlayers(id: string) {

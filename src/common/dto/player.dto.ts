@@ -31,6 +31,9 @@ export class PlayerDto {
   isWinner: boolean;
 
   @Expose()
+  isReady: boolean;
+
+  @Expose()
   finalPosition: number;
 
   @Expose()
