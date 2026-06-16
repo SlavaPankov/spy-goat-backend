@@ -11,6 +11,7 @@ import { Prisma, RoomStatus } from '@prisma/client';
 import { PlayerDto } from '../common/dto/player.dto';
 import { RoomDetailsDto } from './dto/room-details.dto';
 import { RoomPlayersDto } from './dto/room-players.dto';
+import { RoomPlayersStats } from './dto/room-players-stats.dto';
 
 @Injectable()
 export class RoomsService {
@@ -456,15 +457,21 @@ export class RoomsService {
   }
 
   async findRoomStats(roomId: string) {
-    const roomStats = await this.prismaService.roomStats.findUnique({
+    const playersRoomStats = await this.prismaService.playerRoomStats.findMany({
       where: { roomId },
+      include: {
+        user: true,
+      },
+      omit: {
+        userId: true,
+      },
     });
 
-    if (!roomStats) {
+    if (!playersRoomStats) {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
-    return roomStats;
+    return plainToInstance(RoomPlayersStats, playersRoomStats, { excludeExtraneousValues: true });
   }
 
   async findPlayerByUserId(roomId: string, userId: string) {
