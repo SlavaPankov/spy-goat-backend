@@ -20,8 +20,10 @@ export const enum SocketEvent {
   SELECT_CARD = 'selectCard',
   CARD_SELECTED = 'cardSelected',
   CONFIRM_CARD = 'confirmCard',
+  DECLINE_CARD = 'declineCard',
   CARD_CONFIRMED = 'cardConfirmed',
   CARDS_REVEALED = 'cardsRevealed',
+  CARD_DECLINED = 'cardDeclined',
 
   // Turn/Round
   CHOOSE_ROW = 'chooseRow',

@@ -195,40 +195,56 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage(SocketEvent.SELECT_CARD)
-  async handleSelectCard(@ConnectedSocket() client: Socket, @MessageBody() data: { playerId: string; card: Card }) {
+  async handleSelectCard(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; roomId: string; playerId: string; card: Card }
+  ) {
     try {
       await this.gameService.selectCard(data.playerId, data.card);
-      client.emit(SocketEvent.CARD_SELECTED, SocketResponseBuilder.success({ card: data.card }));
+
+      const [gameState, currentPlayer] = await Promise.all([
+        this.gameService.getGameState(data.gameId),
+        this.roomService.findPlayerByUserId(data.roomId, (client.data as Record<string, string>).userId),
+      ]);
+
+      client.emit(
+        SocketEvent.CARD_SELECTED,
+        SocketResponseBuilder.success({ card: data.card, gameState, currentPlayer })
+      );
     } catch (error) {
       this.handleError(client, SocketEvent.CARD_SELECTED, error);
     }
   }
 
   @SubscribeMessage(SocketEvent.CONFIRM_CARD)
-  async handleConfirmCard(@ConnectedSocket() client: Socket, @MessageBody() data: { playerId: string }) {
+  async handleConfirmCard(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; roomId: string; playerId: string }
+  ) {
     try {
       const result = await this.gameService.confirmCardChoice(data.playerId);
 
-      const player = await this.gameService['prismaService'].player.findUnique({
-        where: { id: data.playerId },
-        include: { room: true },
-      });
+      const [gameState, currentPlayer] = await Promise.all([
+        this.gameService.getGameState(data.gameId),
+        this.roomService.findPlayerByUserId(data.roomId, (client.data as Record<string, string>).userId),
+      ]);
 
-      if (!player) {
+      if (!currentPlayer) {
         this.handleError(client, SocketEvent.CARD_CONFIRMED, 'player not found');
 
         return;
       }
 
-      this.emitToRoom(player.room.id, SocketEvent.CARD_CONFIRMED, {
-        playerId: data.playerId,
-        card: player.selectedCard,
+      this.emitToRoom(data.roomId, SocketEvent.CARD_CONFIRMED, {
+        card: currentPlayer.selectedCard,
+        currentPlayer,
+        gameState,
       });
 
       if (result.allReady) {
         const revealedCards = await this.gameService.revealCards(result.gameId);
 
-        this.emitToRoom(player.room.id, SocketEvent.CARDS_REVEALED, { cards: revealedCards });
+        this.emitToRoom(data.roomId, SocketEvent.CARDS_REVEALED, { cards: revealedCards });
 
         setTimeout(() => {
           void (async () => {
@@ -236,17 +252,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               const turnResult = await this.gameService.startTurnProcessing(result.gameId);
 
               if (turnResult.action.actionType === 'choose_row') {
-                this.emitToRoom(player.room.id, SocketEvent.NEED_ROW_CHOICE, {
+                this.emitToRoom(data.roomId, SocketEvent.NEED_ROW_CHOICE, {
                   currentChoosingPlayer: turnResult.currentChoosingPlayer,
                   action: turnResult.action,
                   gameState: turnResult,
                 });
               } else {
                 if (turnResult.isRoundFinished) {
-                  this.emitToRoom(player.room.id, SocketEvent.ROUND_FINISHED, turnResult.roundData);
+                  this.emitToRoom(data.roomId, SocketEvent.ROUND_FINISHED, turnResult.roundData);
                 } else {
                   // Обычное окончание хода
-                  this.emitToRoom(player.room.id, SocketEvent.TURN_FINISHED, { gameState: turnResult });
+                  this.emitToRoom(data.roomId, SocketEvent.TURN_FINISHED, { gameState: turnResult });
                 }
 
                 // Проверяем, закончилась ли игра
@@ -259,7 +275,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
                       const gameState = await this.gameService.getGameState(result.gameId);
 
                       if (gameState.status === 'FINISHED') {
-                        this.emitToRoom(player.room.id, SocketEvent.GAME_ENDED, { gameState });
+                        this.emitToRoom(data.roomId, SocketEvent.GAME_ENDED, { gameState });
                       }
                     })();
                   }, 2000);
@@ -267,13 +283,41 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
               }
             } catch (error) {
               console.error('Error processing turn:', error);
-              this.server.to(player.room.id).emit(SocketEvent.ERROR, SocketResponseBuilder.fromError(error));
+              this.server.to(data.roomId).emit(SocketEvent.ERROR, SocketResponseBuilder.fromError(error));
             }
           })();
         }, 3000);
       }
     } catch (error) {
       this.handleError(client, SocketEvent.CARD_CONFIRMED, error);
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.DECLINE_CARD)
+  async handleDeclineCard(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameId: string; roomId: string; playerId: string }
+  ) {
+    try {
+      await this.gameService.declineCardChoice(data.playerId);
+
+      const [gameState, currentPlayer] = await Promise.all([
+        this.gameService.getGameState(data.gameId),
+        this.roomService.findPlayerByUserId(data.roomId, (client.data as Record<string, string>).userId),
+      ]);
+
+      if (!currentPlayer) {
+        this.handleError(client, SocketEvent.CARD_DECLINED, 'player not found');
+        return;
+      }
+
+      this.emitToRoom(data.roomId, SocketEvent.CARD_DECLINED, {
+        playerId: data.playerId,
+        gameState,
+        currentPlayer,
+      });
+    } catch (error) {
+      this.handleError(client, SocketEvent.CARD_DECLINED, error);
     }
   }
 

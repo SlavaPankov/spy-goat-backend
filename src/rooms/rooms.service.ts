@@ -477,7 +477,6 @@ export class RoomsService {
         finalPosition: true,
         totalPenalty: true,
         userId: true,
-        selectedCard: true,
       },
     });
 
@@ -486,6 +485,18 @@ export class RoomsService {
     }
 
     return plainToInstance(PlayerDto, player, { excludeExtraneousValues: true });
+  }
+
+  async findPlayerById(id: string) {
+    const currentPlayer = await this.prismaService.player.findUnique({
+      where: { id },
+    });
+
+    if (!currentPlayer) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
+    }
+
+    return plainToInstance(PlayerDto, currentPlayer, { excludeExtraneousValues: true });
   }
 
   async verifyRoomPassword(roomId: string, password: string, userId?: string): Promise<boolean> {

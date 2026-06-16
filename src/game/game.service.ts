@@ -431,6 +431,48 @@ export class GameService {
     };
   }
 
+  async declineCardChoice(playerId: string): Promise<{ gameId: string }> {
+    const player = await this.prismaService.player.findUnique({
+      where: { id: playerId },
+      include: {
+        game: {
+          include: { players: true },
+        },
+      },
+    });
+
+    if (!player?.game) {
+      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
+    }
+
+    if (!player.isSelectedCardConfirmed) {
+      throw new BadRequestException('Card is not confirmed');
+    }
+
+    // Если все уже подтвердили — ход начал обрабатываться, откат невозможен
+    const allReady = player.game.players.every((p) => p.isSelectedCardConfirmed);
+
+    if (allReady) {
+      throw new BadRequestException('Cannot decline after all players have confirmed');
+    }
+
+    const selectedCard = this.parseJson<Card>(player.selectedCard);
+    const hand = this.parseJsonArray<Card>(player.hand);
+
+    hand.push(selectedCard);
+
+    await this.prismaService.player.update({
+      where: { id: playerId },
+      data: {
+        hand: hand as unknown as Prisma.JsonArray,
+        isSelectedCardConfirmed: false,
+        selectedCard: Prisma.JsonNull,
+      },
+    });
+
+    return { gameId: player.gameId! };
+  }
+
   async revealCards(gameId: string): Promise<Array<{ playerId: string; card: Card }>> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },

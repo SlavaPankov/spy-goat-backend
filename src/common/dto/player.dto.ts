@@ -16,10 +16,13 @@ export class PlayerDto {
   position: number;
 
   @Expose()
-  handle: string[];
+  hand: string[];
 
   @Expose()
   penalty: string[];
+
+  @Expose()
+  isSelectedCardConfirmed: boolean;
 
   @Expose()
   totalPenalty: number;
