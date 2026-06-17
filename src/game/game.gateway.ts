@@ -14,6 +14,9 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { SocketResponseBuilder } from './types/socket-response.types';
 import { SocketEvent } from './types/socket-event-enum.types';
+import { ChatService } from '../chat/chat.service';
+import { UsePipes, ValidationPipe } from '@nestjs/common';
+import { SendMessageDto } from '../chat/dto/send-message.dto';
 
 interface JoinRoomPayload {
   roomId: string;
@@ -48,7 +51,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly gameService: GameService,
     private readonly roomService: RoomsService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly chatService: ChatService
   ) {}
 
   handleConnection(client: Socket) {
@@ -354,6 +358,59 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       console.log(errorMessage);
 
       return { event: 'getGameState', data: { success: false, error: errorMessage } };
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.SEND_MESSAGE)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendMessageDto) {
+    try {
+      const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content);
+
+      // tempId нужен чтобы клиент сопоставил pending-сообщение с реальным
+      this.emitToRoom(data.roomId, SocketEvent.NEW_MESSAGE, {
+        ...message,
+        tempId: data.tempId,
+      });
+    } catch (error: unknown) {
+      // возвращаем tempId чтобы клиент показал ошибку у нужного сообщения
+      client.emit(SocketEvent.MESSAGE_ERROR, { tempId: data.tempId, error });
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.MARK_READ)
+  async handleMarkRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; playerId: string }
+  ) {
+    try {
+      const result = await this.chatService.markRead(data.messageId, data.playerId);
+
+      if (!result) {
+        return;
+      }
+
+      this.emitToRoom(result.roomId, SocketEvent.MESSAGE_READ, {
+        messageId: result.messageId,
+        playerId: data.playerId,
+        readCount: result.readCount,
+      });
+    } catch (error) {
+      this.handleError(client, SocketEvent.MESSAGE_READ, error);
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.GET_CHAT_HISTORY)
+  async handleGetChatHistory(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string; cursor?: string }
+  ) {
+    try {
+      const messages = await this.chatService.getHistory(data.roomId, data.cursor);
+
+      client.emit(SocketEvent.CHAT_HISTORY, SocketResponseBuilder.success(messages));
+    } catch (error) {
+      this.handleError(client, SocketEvent.CHAT_HISTORY, error);
     }
   }
 }

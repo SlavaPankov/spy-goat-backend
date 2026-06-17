@@ -7,6 +7,7 @@ import { RoomsModule } from '../rooms/rooms.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { jwtConfigFactory } from '../auth/factory/JwtConfigFactory';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   providers: [GameService, GameGateway],
@@ -19,6 +20,7 @@ import { jwtConfigFactory } from '../auth/factory/JwtConfigFactory';
       inject: [ConfigService],
       useFactory: jwtConfigFactory,
     }),
+    ChatModule,
   ],
   exports: [GameService],
 })

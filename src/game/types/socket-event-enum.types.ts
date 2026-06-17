@@ -40,6 +40,15 @@ export const enum SocketEvent {
   PLAYER_READY = 'playerReady',
   PLAYER_READY_ERROR = 'playerReadyError',
 
+  // Chat
+  SEND_MESSAGE = 'sendMessage',
+  NEW_MESSAGE = 'newMessage',
+  MESSAGE_ERROR = 'messageError',
+  MARK_READ = 'markRead',
+  MESSAGE_READ = 'messageRead',
+  GET_CHAT_HISTORY = 'getChatHistory',
+  CHAT_HISTORY = 'chatHistory',
+
   // Errors
   ERROR = 'error',
 }

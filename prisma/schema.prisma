@@ -64,6 +64,8 @@ model Room {
 
   password String?
 
+  messages Message[]
+
   @@index([status, code])
 }
 
@@ -138,6 +140,9 @@ model Player {
 
   wonGames Game[] @relation("GameWinner")
 
+  messages    Message[]
+  messageReads MessageRead[]
+
   @@unique([gameId, position, userId])
   @@index([roomId, userId])
 }
@@ -173,6 +178,35 @@ model PlayerRoomStats {
   @@unique([userId, roomId])
   @@index([roomId])
   @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  iv        String
+  createdAt DateTime @default(now())
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  reads MessageRead[]
+
+  @@index([roomId, createdAt])
+}
+
+model MessageRead {
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  readAt DateTime @default(now())
+
+  @@id([messageId, playerId])
 }
 
 model Token {

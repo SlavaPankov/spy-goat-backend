@@ -10,6 +10,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import JwtAuthGuard from './auth/guards/jwtAuth.guard';
 import { CustomHttpExceptionFilter } from './utils/filters/customHttpException.filter';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CustomHttpExceptionFilter } from './utils/filters/customHttpException.f
     LobbyModule,
     StatisticsModule,
     JwtModule,
+    ChatModule,
   ],
   providers: [
     {
