@@ -17,6 +17,7 @@ import { SocketEvent } from './types/socket-event-enum.types';
 import { ChatService } from '../chat/chat.service';
 import { UsePipes, ValidationPipe } from '@nestjs/common';
 import { SendMessageDto } from '../chat/dto/send-message.dto';
+import { EErrorMessages } from '../types/enums/errorMessage';
 
 interface JoinRoomPayload {
   roomId: string;
@@ -104,9 +105,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Client disconnected: ${client.id}`);
   }
 
-  private handleError(client: Socket, event: SocketEvent, error: unknown): void {
+  private handleError(client: Socket, event: SocketEvent, error: unknown, data?: unknown): void {
     console.error(`Error in ${event}:`, error);
-    client.emit(event, SocketResponseBuilder.fromError(error));
+
+    client.emit(event, SocketResponseBuilder.fromError(error, undefined, data));
   }
 
   private emitToRoom<T>(roomId: string, event: SocketEvent, data: T): void {
@@ -251,7 +253,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       ]);
 
       if (!currentPlayer) {
-        this.handleError(client, SocketEvent.CARD_CONFIRMED, 'player not found');
+        this.handleError(client, SocketEvent.CARD_CONFIRMED, EErrorMessages.PLAYER_NOT_FOUND);
 
         return;
       }
@@ -307,7 +309,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       ]);
 
       if (!currentPlayer) {
-        this.handleError(client, SocketEvent.CARD_DECLINED, 'player not found');
+        this.handleError(client, SocketEvent.CARD_DECLINED, EErrorMessages.PLAYER_NOT_FOUND);
         return;
       }
 
@@ -365,6 +367,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendMessageDto) {
     try {
+      if (data.content === 'pending') {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+
       const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content);
 
       // tempId нужен чтобы клиент сопоставил pending-сообщение с реальным
@@ -374,7 +380,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (error: unknown) {
       // возвращаем tempId чтобы клиент показал ошибку у нужного сообщения
-      client.emit(SocketEvent.MESSAGE_ERROR, { tempId: data.tempId, error });
+      this.handleError(client, SocketEvent.MESSAGE_ERROR, error, { tempId: data.tempId });
     }
   }
 
@@ -403,12 +409,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(SocketEvent.GET_CHAT_HISTORY)
   async handleGetChatHistory(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; cursor?: string }
+    @MessageBody() data: { roomId: string; playerId: string; cursor?: string }
   ) {
     try {
-      const messages = await this.chatService.getHistory(data.roomId, data.cursor);
+      const result = await this.chatService.getHistory(data.roomId, data.playerId, data.cursor);
 
-      client.emit(SocketEvent.CHAT_HISTORY, SocketResponseBuilder.success(messages));
+      client.emit(SocketEvent.CHAT_HISTORY, SocketResponseBuilder.success(result));
     } catch (error) {
       this.handleError(client, SocketEvent.CHAT_HISTORY, error);
     }

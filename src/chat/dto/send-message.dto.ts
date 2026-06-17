@@ -8,7 +8,6 @@ export class SendMessageDto {
   @IsUUID()
   playerId: string;
 
-  // клиент генерирует сам: crypto.randomUUID()
   @IsUUID()
   tempId: string;
 

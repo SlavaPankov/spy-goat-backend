@@ -9,9 +9,8 @@ export interface SocketErrorResponse {
   error: string;
   code?: string;
   timestamp?: Date;
+  data?: unknown;
 }
-
-export type SocketResponse<T = unknown> = SocketSuccessResponse<T> | SocketErrorResponse;
 
 export class SocketResponseBuilder {
   static success<T>(message: T): SocketSuccessResponse<T> {
@@ -22,20 +21,21 @@ export class SocketResponseBuilder {
     };
   }
 
-  static error(error: string, code?: string): SocketErrorResponse {
+  static error(error: string, code?: string, data?: unknown): SocketErrorResponse {
     return {
       success: false,
       error,
       code,
+      data,
       timestamp: new Date(),
     };
   }
 
-  static fromError(err: unknown, defaultMessage = 'Unknown error'): SocketErrorResponse {
+  static fromError(err: unknown, defaultMessage = 'Unknown error', data?: unknown): SocketErrorResponse {
     if (err instanceof Error) {
-      return this.error(err.message, err.constructor.name);
+      return this.error(err.message, err.constructor.name, data);
     }
 
-    return this.error(defaultMessage);
+    return this.error(defaultMessage, undefined, data);
   }
 }

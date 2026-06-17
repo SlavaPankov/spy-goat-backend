@@ -79,7 +79,9 @@ export class ChatService {
       }),
     ]);
 
-    if (!message) return null;
+    if (!message) {
+      return null;
+    }
 
     return {
       messageId,
@@ -89,27 +91,39 @@ export class ChatService {
     };
   }
 
-  async getHistory(roomId: string, cursor?: string, limit = 50) {
-    const messages = await this.prismaService.message.findMany({
-      where: { roomId },
-      take: limit,
-      ...(cursor && { skip: 1, cursor: { id: cursor } }),
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        iv: true,
-        player: {
-          select: {
-            id: true,
-            position: true,
-            user: { select: { username: true } },
+  async getHistory(roomId: string, playerId: string, cursor?: string, limit = 50) {
+    const [messages, unreadCount] = await Promise.all([
+      this.prismaService.message.findMany({
+        where: { roomId },
+        take: limit,
+        ...(cursor && { skip: 1, cursor: { id: cursor } }),
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          content: true,
+          iv: true,
+          createdAt: true,
+          _count: { select: { reads: true } },
+          player: {
+            select: { id: true, user: { select: { username: true } } },
           },
         },
-      },
-    });
+      }),
+      this.prismaService.message.count({
+        where: {
+          roomId,
+          playerId: { not: playerId },
+          reads: { none: { playerId } },
+        },
+      }),
+    ]);
 
-    return messages.reverse().map((message) => this.decryptMessage(message)); // возвращаем в хронологическом порядке
+    return {
+      messages: messages.reverse().map(({ _count, ...message }) => ({
+        ...this.decryptMessage(message),
+        readCount: _count.reads,
+      })),
+      unreadCount,
+    };
   }
 }
