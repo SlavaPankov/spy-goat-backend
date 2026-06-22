@@ -1,4 +1,3 @@
-// auth/decorators/current-user.decorator.ts
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 // Интерфейс для JWT payload

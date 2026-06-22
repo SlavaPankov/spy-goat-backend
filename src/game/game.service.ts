@@ -1,4 +1,3 @@
-// game.service.ts
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StatisticsService } from '../statistics/statistics.service';
@@ -72,6 +71,8 @@ export class GameService {
   private readonly pendingPlayers: Map<string, PlayerCard[]> = new Map();
   private readonly currentProcessingPlayer: Map<string, PlayerCard> = new Map();
   private readonly currentAction: Map<string, TurnAction> = new Map();
+  private readonly handSize = 10;
+  private readonly minGameScore = 66;
 
   constructor(
     private readonly statisticsService: StatisticsService,
@@ -136,7 +137,7 @@ export class GameService {
 
     let index = 0;
 
-    for (let i = 0; i < 1; i += 1) {
+    for (let i = 0; i < this.handSize; i += 1) {
       for (let p = 0; p < playerCount; p++) {
         index += 1;
 
@@ -786,7 +787,7 @@ export class GameService {
       throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
     }
 
-    const loser = game.players.find((player) => player.totalPenalty >= 66);
+    const loser = game.players.find((player) => player.totalPenalty >= this.minGameScore);
 
     if (loser) {
       await this.finishGame(gameId);
@@ -859,6 +860,7 @@ export class GameService {
         data: {
           isWinner: player.id === winnerId,
           finalPosition: sortedPlayers.findIndex((p) => p.id === player.id) + 1,
+          isReady: false,
         },
       });
 
