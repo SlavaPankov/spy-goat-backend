@@ -923,8 +923,8 @@ export class GameService {
     });
   }
 
-  async setIsReady(playerId: string, isReady: boolean) {
-    const currentPlayer = await this.prismaService.player.findFirst({ where: { id: playerId } });
+  async setIsReady(playerId: string, roomId: string, isReady: boolean) {
+    const currentPlayer = await this.prismaService.player.findFirst({ where: { id: playerId, roomId } });
 
     if (!currentPlayer) {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);

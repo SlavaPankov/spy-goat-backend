@@ -1,6 +1,52 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { decrypt, encrypt } from '../utils/crypto.utils';
+import { EErrorMessages } from '../types/enums/errorMessage';
+
+interface RawPlayer {
+  id: string;
+  user: { username: string } | null;
+}
+
+interface RawReplyTo {
+  id: string;
+  content: string;
+  iv: string;
+  deletedAt: Date | null;
+  player: RawPlayer; // user теперь nullable
+}
+
+interface RawMessageInput {
+  id: string;
+  content: string;
+  iv: string;
+  createdAt?: Date;
+  editedAt?: Date | null;
+  deletedAt?: Date | null;
+  updatedAt?: Date | null;
+  roomId?: string;
+  replyTo?: RawReplyTo | null;
+  player?: RawPlayer;
+}
+
+interface DecryptedReplyTo {
+  id: string;
+  content: string | null;
+  deletedAt: Date | null;
+  player: RawPlayer;
+}
+
+interface DecryptedMessage {
+  id: string;
+  content: string;
+  createdAt?: Date;
+  editedAt?: Date | null;
+  deletedAt?: Date | null;
+  updatedAt?: Date | null;
+  roomId?: string;
+  replyTo?: DecryptedReplyTo | null;
+  player?: RawPlayer;
+}
 
 @Injectable()
 export class ChatService {
@@ -23,16 +69,45 @@ export class ChatService {
     this.rateLimitMap.set(playerId, timestamps);
   }
 
-  private decryptMessage(message: { id: string; content: string; iv: string; createdAt: Date; player: unknown }) {
-    const { iv, content, ...rest } = message;
+  private decryptMessage(message: RawMessageInput): DecryptedMessage {
+    const { iv, content, replyTo, ...rest } = message;
 
     return {
       ...rest,
-      content: decrypt(content, iv),
+      content: iv ? decrypt(content, iv) : '',
+      ...(replyTo !== undefined && {
+        replyTo: replyTo
+          ? {
+              id: replyTo.id,
+              deletedAt: replyTo.deletedAt,
+              player: replyTo.player,
+              content: replyTo.deletedAt ? null : decrypt(replyTo.content, replyTo.iv),
+            }
+          : null,
+      }),
     };
   }
 
-  async sendMessage(roomId: string, playerId: string, rawContent: string) {
+  private async getMessageById(messageId: string, playerId: string) {
+    const message = await this.prismaService.message.findUnique({
+      where: { id: messageId },
+      select: { playerId: true, createdAt: true, deletedAt: true, roomId: true },
+    });
+
+    if (!message) {
+      throw new NotFoundException(EErrorMessages.MESSAGE_NOT_FOUND);
+    }
+    if (message.playerId !== playerId) {
+      throw new ForbiddenException(EErrorMessages.MESSAGE_FORBIDDEN);
+    }
+    if (message.deletedAt) {
+      throw new BadRequestException(EErrorMessages.MESSAGE_FORBIDDEN_DELETED);
+    }
+
+    return message;
+  }
+
+  async sendMessage(roomId: string, playerId: string, rawContent: string, replyToId?: string) {
     this.checkRateLimit(playerId);
 
     const player = await this.prismaService.player.findFirst({
@@ -40,24 +115,42 @@ export class ChatService {
     });
 
     if (!player) {
-      throw new BadRequestException('Player is not in this room');
+      throw new BadRequestException(EErrorMessages.PLAYER_IS_NOT_IN_ROOM);
+    }
+
+    if (replyToId) {
+      const replyTo = await this.prismaService.message.findUnique({ where: { id: replyToId } });
+
+      if (!replyTo || replyTo.roomId !== roomId) {
+        throw new BadRequestException(EErrorMessages.INVALID_PLAYER_TARGET);
+      }
+    }
+
+    // TODO: REMOVE THIS
+    if (rawContent === 'error') {
+      throw new BadRequestException('test error');
     }
 
     const { content, iv } = encrypt(rawContent.trim());
 
     const message = await this.prismaService.message.create({
-      data: { content, iv, roomId, playerId },
+      data: { content, iv, roomId, playerId, ...(replyToId && { replyToId }) },
       select: {
         id: true,
         content: true,
         iv: true,
         createdAt: true,
-        player: {
+        updatedAt: true,
+        replyTo: {
           select: {
             id: true,
-            user: { select: { username: true } },
+            content: true,
+            iv: true,
+            deletedAt: true,
+            player: { select: { id: true, user: { select: { username: true } } } },
           },
         },
+        player: { select: { id: true, user: { select: { username: true } } } },
       },
     });
 
@@ -91,10 +184,10 @@ export class ChatService {
     };
   }
 
-  async getHistory(roomId: string, playerId: string, cursor?: string, limit = 50) {
+  async getHistory(roomId: string, playerId: string, cursor?: string, limit = 15) {
     const [messages, unreadCount] = await Promise.all([
       this.prismaService.message.findMany({
-        where: { roomId },
+        where: { roomId, deletedAt: null },
         take: limit,
         ...(cursor && { skip: 1, cursor: { id: cursor } }),
         orderBy: { createdAt: 'desc' },
@@ -103,7 +196,18 @@ export class ChatService {
           content: true,
           iv: true,
           createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
           _count: { select: { reads: true } },
+          replyTo: {
+            select: {
+              id: true,
+              content: true,
+              iv: true,
+              deletedAt: true,
+              player: { select: { id: true, user: { select: { username: true } } } },
+            },
+          },
           player: {
             select: { id: true, user: { select: { username: true } } },
           },
@@ -125,5 +229,50 @@ export class ChatService {
       })),
       unreadCount,
     };
+  }
+
+  async editMessage(messageId: string, playerId: string, rawContent: string) {
+    await this.getMessageById(messageId, playerId);
+
+    const { content, iv } = encrypt(rawContent.trim());
+
+    const updated = await this.prismaService.message.update({
+      where: { id: messageId },
+      data: { content, iv, updatedAt: new Date() },
+      select: {
+        id: true,
+        content: true,
+        iv: true,
+        createdAt: true,
+        updatedAt: true,
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            iv: true,
+            deletedAt: true,
+            player: { select: { id: true, user: { select: { username: true } } } },
+          },
+        },
+        player: { select: { id: true, user: { select: { username: true } } } },
+      },
+    });
+
+    return this.decryptMessage(updated);
+  }
+
+  async deleteMessage(messageId: string, playerId: string) {
+    const message = await this.getMessageById(messageId, playerId);
+
+    await this.prismaService.message.update({
+      where: { id: messageId },
+      data: {
+        deletedAt: new Date().toISOString(),
+        content: '',
+        iv: '',
+      },
+    });
+
+    return { messageId, roomId: message.roomId };
   }
 }

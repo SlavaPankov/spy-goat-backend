@@ -48,6 +48,10 @@ export const enum SocketEvent {
   MESSAGE_READ = 'messageRead',
   GET_CHAT_HISTORY = 'getChatHistory',
   CHAT_HISTORY = 'chatHistory',
+  EDIT_MESSAGE = 'editMessage',
+  MESSAGE_EDITED = 'messageEdited',
+  DELETE_MESSAGE = 'deleteMessage',
+  MESSAGE_DELETED = 'messageDeleted',
 
   // Errors
   ERROR = 'error',

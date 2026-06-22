@@ -13,6 +13,8 @@ export const enum EErrorMessages {
   NOT_ENOUGH_PLAYERS = 'Not enough players to start the game',
   PLAYER_NOT_FOUND_IN_GAME = 'Player not found in this game',
   PLAYER_NOT_FOUND = 'Player not found',
+  PLAYER_IS_NOT_IN_ROOM = 'Player is not in this room',
+  INVALID_PLAYER_TARGET = 'Invalid player target',
   CARD_NOT_IN_HAND = 'Card not in hand',
   GAME_NOT_FOUND = 'Game not found',
   INVALID_ROW_CHOSEN = 'Invalid row chosen',
@@ -20,4 +22,8 @@ export const enum EErrorMessages {
   NO_ROOM_STATS = 'No stats for current room',
   ACTIVE_GAME_NOT_FOUND = 'Active game not found',
   ROOM_WITHOUT_PASSWORD = 'Room is private but has no password',
+  MESSAGE_NOT_FOUND = 'Message not found',
+  MESSAGE_FORBIDDEN = 'Cannot edit others messages',
+  MESSAGE_FORBIDDEN_DELETED = 'Cannot edit deleted message',
+  MESSAGE_ALREADY_DELETED = 'Message already deleted',
 }

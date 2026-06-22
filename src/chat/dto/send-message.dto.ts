@@ -1,4 +1,4 @@
-import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class SendMessageDto {
@@ -10,6 +10,10 @@ export class SendMessageDto {
 
   @IsUUID()
   tempId: string;
+
+  @IsOptional()
+  @IsUUID()
+  replayToId?: string;
 
   @IsString()
   @MinLength(1)

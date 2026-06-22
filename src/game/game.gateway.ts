@@ -191,7 +191,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; playerId: string; isReady: boolean }
   ) {
     try {
-      await this.gameService.setIsReady(data.playerId, data.isReady);
+      await this.gameService.setIsReady(data.playerId, data.roomId, data.isReady);
 
       const [roomDetails, roomPlayers] = await Promise.all([
         this.roomService.findOneDetails(data.roomId),
@@ -371,15 +371,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
 
-      const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content);
+      const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content, data.replayToId);
 
-      // tempId нужен чтобы клиент сопоставил pending-сообщение с реальным
       this.emitToRoom(data.roomId, SocketEvent.NEW_MESSAGE, {
         ...message,
         tempId: data.tempId,
       });
     } catch (error: unknown) {
-      // возвращаем tempId чтобы клиент показал ошибку у нужного сообщения
+      console.log(error);
       this.handleError(client, SocketEvent.MESSAGE_ERROR, error, { tempId: data.tempId });
     }
   }
@@ -403,6 +402,34 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (error) {
       this.handleError(client, SocketEvent.MESSAGE_READ, error);
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.EDIT_MESSAGE)
+  async handleEditMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; playerId: string; content: string; roomId: string }
+  ) {
+    try {
+      const result = await this.chatService.editMessage(data.messageId, data.playerId, data.content);
+
+      this.emitToRoom(data.roomId, SocketEvent.MESSAGE_EDITED, result);
+    } catch (error) {
+      this.handleError(client, SocketEvent.MESSAGE_EDITED, error);
+    }
+  }
+
+  @SubscribeMessage(SocketEvent.DELETE_MESSAGE)
+  async handleDeleteMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; playerId: string }
+  ) {
+    try {
+      const result = await this.chatService.deleteMessage(data.messageId, data.playerId);
+
+      this.emitToRoom(result.roomId, SocketEvent.MESSAGE_DELETED, result);
+    } catch (error) {
+      this.handleError(client, SocketEvent.MESSAGE_DELETED, error);
     }
   }
 
