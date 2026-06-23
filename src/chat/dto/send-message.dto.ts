@@ -13,7 +13,7 @@ export class SendMessageDto {
 
   @IsOptional()
   @IsUUID()
-  replayToId?: string;
+  replyToId?: string;
 
   @IsString()
   @MinLength(1)

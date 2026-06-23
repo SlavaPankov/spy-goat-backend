@@ -371,7 +371,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         await new Promise((resolve) => setTimeout(resolve, 5000));
       }
 
-      const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content, data.replayToId);
+      const message = await this.chatService.sendMessage(data.roomId, data.playerId, data.content, data.replyToId);
 
       this.emitToRoom(data.roomId, SocketEvent.NEW_MESSAGE, {
         ...message,

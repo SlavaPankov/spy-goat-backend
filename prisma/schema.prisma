@@ -188,8 +188,8 @@ model Message {
   updatedAt DateTime?
   deletedAt DateTime?
 
-  replayToId String?
-  replyTo Message? @relation("MessageReplies", fields: [replayToId], references: [id], onDelete: SetNull)
+  replyToId String?
+  replyTo Message? @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies Message[] @relation("MessageReplies")
 
   playerId String
