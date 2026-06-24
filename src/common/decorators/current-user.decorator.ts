@@ -1,12 +1,10 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
-// Интерфейс для JWT payload
 export interface JwtPayload {
   userId: string;
   username: string;
 }
 
-// Типизированный Request
 interface RequestWithUser {
   user: JwtPayload;
 }
@@ -14,7 +12,7 @@ interface RequestWithUser {
 export const CurrentUser = createParamDecorator(
   (data: keyof JwtPayload | undefined, ctx: ExecutionContext): JwtPayload | string => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
-    const user: JwtPayload = request.user;
+    const user = request.user;
 
     if (!user) {
       throw new Error('User not found in request');

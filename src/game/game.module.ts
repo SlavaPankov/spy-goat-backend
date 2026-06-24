@@ -6,7 +6,7 @@ import { StatisticsModule } from '../statistics/statistics.module';
 import { RoomsModule } from '../rooms/rooms.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { jwtConfigFactory } from '../auth/factory/JwtConfigFactory';
+import { jwtConfigFactory } from '../auth/factory/jwt-config.factory';
 import { ChatModule } from '../chat/chat.module';
 
 @Module({

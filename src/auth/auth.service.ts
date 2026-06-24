@@ -1,10 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { compare } from 'bcryptjs';
 
 import { CreateUserDto } from '../users/dto/create-user.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
 
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -49,9 +48,9 @@ export class AuthService {
     return passwordIsValid ? createUser : null;
   }
 
-  async refreshToken(dto: UpdateAuthDto) {
+  async refreshToken(refreshToken: string) {
     const userToken = await this.prisma.token.findUnique({
-      where: { refreshToken: dto.refreshToken },
+      where: { refreshToken },
     });
 
     if (!userToken) {
@@ -65,6 +64,14 @@ export class AuthService {
     await this.updateRefreshToken(createUser.id, tokens.refreshToken);
 
     return tokens;
+  }
+
+  async logout(userId: string, refreshToken?: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    await this.prisma.token.delete({ where: { userId, refreshToken } });
   }
 
   private async signTokens(userId: string, username: string) {

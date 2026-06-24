@@ -59,81 +59,79 @@ async function main() {
 
   console.log('✅ Database cleared');
 
-  // // Хешируем пароли
-  const hashedPassword = await bcrypt.hash('password123', Number(process.env.CRYPT_SALT ?? 10));
-  const roomHashedPassword = await bcrypt.hash('room123', Number(process.env.CRYPT_SALT ?? 10));
-  const rootHashedPassword = await bcrypt.hash('rootroot', Number(process.env.CRYPT_SALT ?? 10));
+  // const hashedPassword = await bcrypt.hash('password123', Number(process.env.CRYPT_SALT ?? 10));
+  // const roomHashedPassword = await bcrypt.hash('room123', Number(process.env.CRYPT_SALT ?? 10));
+  // const rootHashedPassword = await bcrypt.hash('rootroot', Number(process.env.CRYPT_SALT ?? 10));
   //
-  // Создаём пользователей
-  const usernames = generateUsername(40);
-
-  const users = await Promise.all(
-    new Array(40).fill(0).map((_, index) =>
-      prisma.user.create({
-        data: {
-          username: usernames[index],
-          password: hashedPassword,
-        },
-      })
-    )
-  );
-
-  console.log(`✅ Created ${users.length} users`);
-
-  const roomNames = generateRoomName(users.length);
-  const rooms = await Promise.all(
-    users.map((user, index) =>
-      prisma.room.create({
-        data: {
-          name: roomNames[index],
-          code: `test_room_${index + 1}_code`,
-          maxPlayers: 4,
-          currentPlayers: 1,
-          isPrivate: index % 2 === 0,
-          ...(index % 2 === 0 && { password: roomHashedPassword }),
-          status: RoomStatus.WAITING,
-          creatorId: user.id,
-          roomStats: {
-            create: {
-              totalGames: 0,
-              completedGames: 0,
-            },
-          },
-        },
-        include: { roomStats: true },
-      })
-    )
-  );
-
-  console.log(`✅ Created ${rooms.length} rooms`);
-
-  const players = await Promise.all(
-    rooms.map((room, index) =>
-      prisma.player.create({
-        data: {
-          userId: users[index].id,
-          roomId: room.id,
-          gameId: null,
-          position: 0,
-          hand: [],
-          penaltyCard: [],
-          totalPenalty: 0,
-          isReady: true,
-          isWinner: false,
-          finalPosition: 2,
-        },
-      })
-    )
-  );
-
-  console.log(`✅ Created ${players.length} players`);
-
-  await prisma.user.create({
-    data: {
-      username: `root`,
-      password: rootHashedPassword,
-    },
-  });
+  // const usernames = generateUsername(40);
+  //
+  // const users = await Promise.all(
+  //   new Array(40).fill(0).map((_, index) =>
+  //     prisma.user.create({
+  //       data: {
+  //         username: usernames[index],
+  //         password: hashedPassword,
+  //       },
+  //     })
+  //   )
+  // );
+  //
+  // console.log(`✅ Created ${users.length} users`);
+  //
+  // const roomNames = generateRoomName(users.length);
+  // const rooms = await Promise.all(
+  //   users.map((user, index) =>
+  //     prisma.room.create({
+  //       data: {
+  //         name: roomNames[index],
+  //         code: `test_room_${index + 1}_code`,
+  //         maxPlayers: 4,
+  //         currentPlayers: 1,
+  //         isPrivate: index % 2 === 0,
+  //         ...(index % 2 === 0 && { password: roomHashedPassword }),
+  //         status: RoomStatus.WAITING,
+  //         creatorId: user.id,
+  //         roomStats: {
+  //           create: {
+  //             totalGames: 0,
+  //             completedGames: 0,
+  //           },
+  //         },
+  //       },
+  //       include: { roomStats: true },
+  //     })
+  //   )
+  // );
+  //
+  // console.log(`✅ Created ${rooms.length} rooms`);
+  //
+  // const players = await Promise.all(
+  //   rooms.map((room, index) =>
+  //     prisma.player.create({
+  //       data: {
+  //         userId: users[index].id,
+  //         roomId: room.id,
+  //         gameId: null,
+  //         position: 0,
+  //         hand: [],
+  //         penaltyCard: [],
+  //         totalPenalty: 0,
+  //         isReady: true,
+  //         isWinner: false,
+  //         finalPosition: 2,
+  //       },
+  //     })
+  //   )
+  // );
+  //
+  // console.log(`✅ Created ${players.length} players`);
+  //
+  // await prisma.user.create({
+  //   data: {
+  //     username: `root`,
+  //     password: rootHashedPassword,
+  //   },
+  // });
 
   // const room3 = await prisma.room.create({
   //   data: {

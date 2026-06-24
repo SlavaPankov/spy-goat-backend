@@ -7,9 +7,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { SessionJwtStrategy } from './security/sessionJwtStrategy';
-import { UserLoginStrategy } from './security/userLoginStrategy';
-import { jwtConfigFactory } from './factory/JwtConfigFactory';
+import { SessionJwtStrategy } from './security/session-jwt.strategy';
+import { UserLoginStrategy } from './security/user-login.strategy';
+import { jwtConfigFactory } from './factory/jwt-config.factory';
+import { RefreshGuard } from './guards/refresh.guard';
+import { RefreshJwtStrategy } from './security/refresh-jwt.strategy';
 
 @Module({
   imports: [
@@ -24,6 +26,6 @@ import { jwtConfigFactory } from './factory/JwtConfigFactory';
     UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, UserLoginStrategy, SessionJwtStrategy],
+  providers: [AuthService, UserLoginStrategy, SessionJwtStrategy, RefreshGuard, RefreshJwtStrategy],
 })
 export class AuthModule {}

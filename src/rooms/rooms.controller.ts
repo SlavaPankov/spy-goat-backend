@@ -15,7 +15,7 @@ import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { RoomStatus } from '@prisma/client';
-import JwtAuthGuard from '../auth/guards/jwtAuth.guard';
+import JwtAuthGuard from '../auth/guards/jwt-auth.guard';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)

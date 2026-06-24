@@ -8,7 +8,7 @@ import { LobbyModule } from './lobby/lobby.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import JwtAuthGuard from './auth/guards/jwtAuth.guard';
+import JwtAuthGuard from './auth/guards/jwt-auth.guard';
 import { CustomHttpExceptionFilter } from './utils/filters/customHttpException.filter';
 import { ChatModule } from './chat/chat.module';
 

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ExcludePasswordInterceptor } from './common/interceptors/exclude-password.interceptor';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -18,8 +19,11 @@ async function bootstrap() {
       transform: true,
     })
   );
+  app.use(cookieParser());
 
-  app.enableCors();
+  app.enableCors({
+    credentials: true,
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }
