@@ -15,9 +15,10 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { SocketResponseBuilder } from './types/socket-response.types';
 import { SocketEvent } from './types/socket-event-enum.types';
 import { ChatService } from '../chat/chat.service';
-import { UsePipes, ValidationPipe } from '@nestjs/common';
+import { UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { SendMessageDto } from '../chat/dto/send-message.dto';
 import { EErrorMessages } from '../types/enums/errorMessage';
+import { WsJwtGuard } from './guards/ws-jwt.guard';
 
 interface JoinRoomPayload {
   roomId: string;
@@ -75,6 +76,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = this.jwtService.verify<JwtPayload>(token);
 
       (client.data as Record<string, string>).userId = payload.userId;
+      (client.data as Record<string, number>).exp = payload.exp * 1000;
 
       console.log(`✅ Client connected: ${client.id}, userId: ${payload.userId}`);
     } catch (err) {
@@ -132,6 +134,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.emitToRoom(roomId, SocketEvent.TURN_FINISHED, { gameState: result });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.SUBSCRIBE_ROOM)
   async handleSubscribeRoom(
     @ConnectedSocket() client: Socket,
@@ -153,6 +156,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.JOIN_ROOM)
   async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload) {
     try {
@@ -169,6 +173,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.EXIT_ROOM)
   async handleExitRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomPayload) {
     try {
@@ -185,6 +190,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.READY)
   async handleSetReady(
     @ConnectedSocket() client: Socket,
@@ -207,6 +213,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.START_GAME)
   async handleStartGame(@ConnectedSocket() client: Socket, @MessageBody() data: StartGamePayload) {
     try {
@@ -217,6 +224,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.SELECT_CARD)
   async handleSelectCard(
     @ConnectedSocket() client: Socket,
@@ -239,6 +247,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.CONFIRM_CARD)
   async handleConfirmCard(
     @ConnectedSocket() client: Socket,
@@ -295,6 +304,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.DECLINE_CARD)
   async handleDeclineCard(
     @ConnectedSocket() client: Socket,
@@ -323,6 +333,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.CHOOSE_ROW)
   async handleChooseRow(@ConnectedSocket() client: Socket, @MessageBody() data: ChooseRowPayload) {
     try {
@@ -348,6 +359,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.GET_GAME_STATE)
   async handleGetGameState(@ConnectedSocket() client: Socket, @MessageBody() data: GetGameStatePayload) {
     try {
@@ -363,6 +375,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.SEND_MESSAGE)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendMessageDto) {
@@ -383,6 +396,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.MARK_READ)
   async handleMarkRead(
     @ConnectedSocket() client: Socket,
@@ -405,6 +419,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.EDIT_MESSAGE)
   async handleEditMessage(
     @ConnectedSocket() client: Socket,
@@ -419,6 +434,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.DELETE_MESSAGE)
   async handleDeleteMessage(
     @ConnectedSocket() client: Socket,
@@ -433,6 +449,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage(SocketEvent.GET_CHAT_HISTORY)
   async handleGetChatHistory(
     @ConnectedSocket() client: Socket,

@@ -254,6 +254,17 @@ export class RoomsService {
         throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
       }
 
+      await tx.playerRoomStats.create({
+        data: {
+          roomId: createdRoom.id,
+          userId: creatorId,
+          gamesPlayed: 0,
+          gamesWon: 0,
+          totalPenalty: 0,
+          bestScore: 0,
+        },
+      });
+
       return new RoomEntity(roomWithPlayers);
     });
   }
@@ -340,7 +351,7 @@ export class RoomsService {
       });
 
       // 8. Создаем статистику игрока в комнате
-      const existingStats = await this.prismaService.playerRoomStats.findUnique({
+      const existingStats = await tx.playerRoomStats.findUnique({
         where: {
           userId_roomId: {
             userId,
@@ -349,7 +360,7 @@ export class RoomsService {
         },
       });
 
-      await this.prismaService.playerRoomStats.upsert({
+      await tx.playerRoomStats.upsert({
         where: {
           userId_roomId: {
             userId,

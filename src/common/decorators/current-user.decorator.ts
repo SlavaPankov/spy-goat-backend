@@ -3,6 +3,7 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 export interface JwtPayload {
   userId: string;
   username: string;
+  exp: number;
 }
 
 interface RequestWithUser {
@@ -10,7 +11,7 @@ interface RequestWithUser {
 }
 
 export const CurrentUser = createParamDecorator(
-  (data: keyof JwtPayload | undefined, ctx: ExecutionContext): JwtPayload | string => {
+  (data: keyof JwtPayload | undefined, ctx: ExecutionContext): JwtPayload | string | number => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 
