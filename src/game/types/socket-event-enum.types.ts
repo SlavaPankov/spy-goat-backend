@@ -9,6 +9,7 @@ export const enum SocketEvent {
 
   PLAYER_LEAVE = 'playerLeave',
   PLAYER_LEAVE_ERROR = 'playerLeaveError',
+  YOU_LEAVE = 'youLeave',
 
   // Game lifecycle
   START_GAME = 'startGame',
@@ -39,6 +40,9 @@ export const enum SocketEvent {
 
   PLAYER_READY = 'playerReady',
   PLAYER_READY_ERROR = 'playerReadyError',
+
+  PLAYER_UPDATED = 'playerUpdated',
+  STATS_UPDATED = 'statsUpdated',
 
   // Chat
   SEND_MESSAGE = 'sendMessage',

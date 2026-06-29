@@ -162,12 +162,17 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       await this.roomService.join(data.roomId, data.userId);
 
-      const [roomDetails, roomPlayers] = await Promise.all([
+      const [roomDetails, roomPlayers, currentPlayer, roomStats] = await Promise.all([
         this.roomService.findOneDetails(data.roomId),
         this.roomService.findRoomPlayers(data.roomId),
+        this.roomService.findPlayerByUserId(data.roomId, data.userId),
+        this.roomService.findRoomStats(data.roomId),
       ]);
 
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_JOINED, { roomDetails, roomPlayers });
+      this.emitToRoom(data.roomId, SocketEvent.STATS_UPDATED, { roomStats });
+
+      client.emit(SocketEvent.PLAYER_UPDATED, SocketResponseBuilder.success({ currentPlayer }));
     } catch (error) {
       this.handleError(client, SocketEvent.PLAYER_JOINED_ERROR, error);
     }
@@ -179,12 +184,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       await this.roomService.exit(data.roomId, data.userId);
 
-      const [roomDetails, roomPlayers] = await Promise.all([
+      const [roomDetails, roomPlayers, roomStats] = await Promise.all([
         this.roomService.findOneDetails(data.roomId),
         this.roomService.findRoomPlayers(data.roomId),
+        this.roomService.findRoomStats(data.roomId),
       ]);
 
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_LEAVE, { roomDetails, roomPlayers });
+      this.emitToRoom(data.roomId, SocketEvent.STATS_UPDATED, { roomStats });
+
+      client.emit(SocketEvent.YOU_LEAVE, SocketResponseBuilder.success({}));
     } catch (error) {
       this.handleError(client, SocketEvent.PLAYER_LEAVE_ERROR, error);
     }
@@ -199,15 +208,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       await this.gameService.setIsReady(data.playerId, data.roomId, data.isReady);
 
-      const [roomDetails, roomPlayers] = await Promise.all([
+      const [roomDetails, roomPlayers, currentPlayer] = await Promise.all([
         this.roomService.findOneDetails(data.roomId),
         this.roomService.findRoomPlayers(data.roomId),
+        this.roomService.findPlayerById(data.playerId),
       ]);
 
       this.emitToRoom(data.roomId, SocketEvent.PLAYER_READY, {
         roomDetails,
         roomPlayers,
       });
+
+      client.emit(SocketEvent.PLAYER_UPDATED, SocketResponseBuilder.success({ currentPlayer }));
     } catch (error) {
       this.handleError(client, SocketEvent.PLAYER_READY_ERROR, error);
     }
