@@ -460,7 +460,7 @@ export class RoomsService {
       }
 
       // 8. Удаляем статистику игрока в комнате
-      const existingStats = await this.prismaService.playerRoomStats.findUnique({
+      const existingStats = await tx.playerRoomStats.findUnique({
         where: {
           userId_roomId: {
             userId,

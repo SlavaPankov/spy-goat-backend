@@ -1,6 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { GameService } from './game.service';
-import { GameGateway } from './game.gateway';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StatisticsModule } from '../statistics/statistics.module';
 import { RoomsModule } from '../rooms/rooms.module';
@@ -10,7 +9,7 @@ import { jwtConfigFactory } from '../auth/factory/jwt-config.factory';
 import { ChatModule } from '../chat/chat.module';
 
 @Module({
-  providers: [GameService, GameGateway],
+  providers: [GameService],
   imports: [
     PrismaModule,
     StatisticsModule,

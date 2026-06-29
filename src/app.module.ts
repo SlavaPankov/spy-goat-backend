@@ -11,6 +11,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import JwtAuthGuard from './auth/guards/jwt-auth.guard';
 import { CustomHttpExceptionFilter } from './utils/filters/customHttpException.filter';
 import { ChatModule } from './chat/chat.module';
+import { SocketModule } from './socket/socket.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ChatModule } from './chat/chat.module';
     StatisticsModule,
     JwtModule,
     ChatModule,
+    SocketModule,
   ],
   providers: [
     {
