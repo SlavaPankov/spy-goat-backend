@@ -1,6 +1,7 @@
 export interface SocketSuccessResponse<T = unknown> {
   success: true;
   message: T;
+  eventId?: string;
   timestamp?: Date;
 }
 
@@ -13,10 +14,11 @@ export interface SocketErrorResponse {
 }
 
 export class SocketResponseBuilder {
-  static success<T>(message: T): SocketSuccessResponse<T> {
+  static success<T>(message: T, eventId?: string): SocketSuccessResponse<T> {
     return {
       success: true,
       message,
+      eventId,
       timestamp: new Date(),
     };
   }

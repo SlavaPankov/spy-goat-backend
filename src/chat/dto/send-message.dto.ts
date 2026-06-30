@@ -13,11 +13,15 @@ export class SendMessageDto {
 
   @IsOptional()
   @IsUUID()
-  replyToId?: string;
+  replyToId: string;
 
   @IsString()
   @MinLength(1)
   @MaxLength(500)
   @Transform(({ value }) => (value as string).trim())
   content: string;
+
+  @IsOptional()
+  @IsUUID()
+  eventId: string;
 }

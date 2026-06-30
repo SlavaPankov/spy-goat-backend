@@ -14,8 +14,8 @@ export class SocketServerService {
     return this.server;
   }
 
-  emitToRoom<T>(roomId: string, event: string, data: T): void {
-    this.server.to(roomId).emit(event, SocketResponseBuilder.success(data));
+  emitToRoom<T>(roomId: string, event: string, data: T, eventId?: string): void {
+    this.server.to(roomId).emit(event, SocketResponseBuilder.success(data, eventId));
   }
 
   emitError(client: Socket, event: string, error: unknown, data?: unknown): void {
