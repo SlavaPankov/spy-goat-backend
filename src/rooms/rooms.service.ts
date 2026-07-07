@@ -1,4 +1,11 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
 import { CreateRoomDto } from './dto/create-room.dto';
@@ -12,6 +19,7 @@ import { PlayerDto } from '../common/dto/player.dto';
 import { RoomDetailsDto } from './dto/room-details.dto';
 import { RoomPlayersDto } from './dto/room-players.dto';
 import { RoomPlayersStats } from './dto/room-players-stats.dto';
+import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
 export class RoomsService {
@@ -643,5 +651,37 @@ export class RoomsService {
     } else {
       return currentRoom.creatorId === userId;
     }
+  }
+
+  async updateRoom(id: string, userId: string, data: UpdateRoomDto) {
+    const currentRoom = await this.prismaService.room.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!currentRoom) {
+      throw new NotFoundException(EErrorMessages.ROOM_NOT_FOUND);
+    }
+
+    if (currentRoom.creatorId !== userId) {
+      throw new ForbiddenException(EErrorMessages.ROOM_NOT_ALLOWED);
+    }
+
+    if (currentRoom.status === RoomStatus.IN_PROGRESS) {
+      throw new BadRequestException(EErrorMessages.ROOM_IS_IN_PROGRESS);
+    }
+
+    const updatedRoom = await this.prismaService.room.update({
+      where: {
+        id,
+      },
+      data,
+      include: {
+        creator: true,
+      },
+    });
+
+    return plainToInstance(RoomDetailsDto, updatedRoom, { excludeExtraneousValues: true });
   }
 }

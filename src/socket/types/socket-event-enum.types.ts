@@ -4,6 +4,7 @@ export const enum SocketEvent {
   ROOM_JOIN = 'room:join',
   ROOM_EXIT = 'room:exit',
   ROOM_READY = 'room:ready',
+  ROOM_GET_STATE = 'room:getState',
 
   // Room -> Client
   ROOM_SUBSCRIBED = 'room:subscribed',
@@ -16,6 +17,8 @@ export const enum SocketEvent {
   ROOM_PLAYER_READY_ERROR = 'room:playerReadyError',
   ROOM_PLAYER_UPDATED = 'room:playerUpdated',
   ROOM_STATS_UPDATED = 'room:statsUpdated',
+  ROOM_STATE_CHANGED = 'room:stateChanged',
+  ROOM_STATE_CHANGED_ERROR = 'room:stateChangedError',
 
   // Game -> Server
   GAME_START = 'game:start',

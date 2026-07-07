@@ -148,9 +148,35 @@ export class RoomGateway {
   async handleStartGame(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string; eventId?: string }) {
     try {
       const gameState = await this.gameService.startGame(data.roomId);
+
       this.socketServer.emitToRoom(data.roomId, SocketEvent.GAME_STARTED, gameState, data.eventId);
     } catch (error) {
       this.socketServer.emitError(client, SocketEvent.GAME_STARTED_ERROR, error, {
+        ...(data.eventId && { eventId: data.eventId }),
+      });
+    }
+  }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage(SocketEvent.ROOM_GET_STATE)
+  async handleGetRoomState(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string; eventId?: string }
+  ) {
+    try {
+      const [roomDetails, roomPlayers] = await Promise.all([
+        this.roomService.findOneDetails(data.roomId),
+        this.roomService.findRoomPlayers(data.roomId),
+      ]);
+
+      this.socketServer.emitToRoom(
+        data.roomId,
+        SocketEvent.ROOM_STATE_CHANGED,
+        { roomDetails, roomPlayers },
+        data.eventId
+      );
+    } catch (error) {
+      this.socketServer.emitError(client, SocketEvent.ROOM_STATE_CHANGED_ERROR, error, {
         ...(data.eventId && { eventId: data.eventId }),
       });
     }

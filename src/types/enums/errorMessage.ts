@@ -1,6 +1,8 @@
 export const enum EErrorMessages {
   USER_NOT_FOUND = 'User not found',
   ROOM_NOT_FOUND = 'Room not found',
+  ROOM_NOT_ALLOWED = 'Room editing is not allowed',
+  ROOM_IS_IN_PROGRESS = 'Room is in progress',
   PASSWORD_DOESNT_MATCH = 'Passwords do not match',
   USER_ALREADY_EXISTS = 'User already exists',
   ROOM_ALREADY_EXISTS = 'Room already exists',

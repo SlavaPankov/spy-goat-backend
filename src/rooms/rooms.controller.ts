@@ -10,12 +10,15 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  Patch,
+  Put,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { RoomStatus } from '@prisma/client';
 import JwtAuthGuard from '../auth/guards/jwt-auth.guard';
+import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -105,5 +108,14 @@ export class RoomsController {
   @Get(':id/has-access')
   checkIsPrivateRoom(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @CurrentUser() user: JwtPayload) {
     return this.roomsService.checkHasAccess(id, user.userId);
+  }
+
+  @Put(':id')
+  updateRoom(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() data: UpdateRoomDto
+  ) {
+    return this.roomsService.updateRoom(id, user.userId, data);
   }
 }
