@@ -558,6 +558,9 @@ export class RoomsService {
         totalPenalty: true,
         userId: true,
       },
+      include: {
+        user: true,
+      },
     });
 
     if (!player) {

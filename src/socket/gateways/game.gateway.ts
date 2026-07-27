@@ -224,6 +224,7 @@ export class GameGateway {
   async handleGetState(@ConnectedSocket() client: Socket, @MessageBody() data: { gameId: string; eventId?: string }) {
     try {
       const gameState = await this.gameService.getGameState(data.gameId);
+
       this.socketServer.emitToRoom(gameState.roomId, SocketEvent.GAME_STATE_CHANGED, { gameState }, data.eventId);
     } catch (error) {
       this.socketServer.emitError(client, SocketEvent.GAME_STATE_CHANGED, error, {
