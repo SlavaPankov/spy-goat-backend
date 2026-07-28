@@ -4,11 +4,8 @@ import { StatisticsService } from '../statistics/statistics.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
 import { Prisma } from '@prisma/client';
 import { BotService } from '../bot/bot.service';
-
-export interface Card {
-  number: number;
-  penalty: number;
-}
+import { Card } from './interfaces/card.interface';
+import { BotDifficulty } from '../bot/types/enum/bot-difficulty.enum';
 
 export interface TurnAction {
   playerId: string;
@@ -67,7 +64,7 @@ export class GameService {
   private readonly pendingPlayers: Map<string, PlayerCard[]> = new Map();
   private readonly currentProcessingPlayer: Map<string, PlayerCard> = new Map();
   private readonly currentAction: Map<string, TurnAction> = new Map();
-  private readonly handSize = 10;
+  private readonly handSize = 2;
   private readonly minGameScore = 66;
 
   constructor(
@@ -265,6 +262,13 @@ export class GameService {
   }
 
   async autoSelectCardsForBots(gameId: string): Promise<void> {
+    const game = await this.prismaService.game.findUnique({ where: { id: gameId } });
+
+    if (!game) {
+      return;
+    }
+
+    const rows = this.parseJsonArray<Card[]>(game.rows);
     const bots = await this.prismaService.player.findMany({
       where: { gameId, isBot: true },
     });
@@ -273,7 +277,7 @@ export class GameService {
       const hand = this.parseJsonArray<Card>(bot.hand);
       if (hand.length === 0) continue;
 
-      const card = this.botService.decideCardChoice(hand);
+      const card = this.botService.decideCardChoice(hand, rows, bot.totalPenalty, BotDifficulty.HARD);
 
       await this.selectCard(bot.id, card);
       await this.confirmCardChoice(bot.id);
@@ -546,6 +550,10 @@ export class GameService {
       const { isRoundFinished, roundData, isGameEnded } = await this.finishRound(gameId);
       const gameState = await this.getGameState(gameId);
 
+      if (isGameEnded) {
+        await this.botService.removeBotsFromRoom(gameState.roomId);
+      }
+
       return {
         ...gameState,
         action: { playerId: '', actionType: 'place' },
@@ -572,9 +580,11 @@ export class GameService {
     this.currentAction.set(gameId, action);
 
     if (action.actionType === 'place' || action.actionType === 'take_row') {
-      await this.applyAction(gameId, action);
       pending.shift();
       this.pendingPlayers.set(gameId, pending);
+
+      await this.applyAction(gameId, action);
+
       return this.processNextPlayer(gameId);
     }
 
@@ -583,7 +593,7 @@ export class GameService {
     });
 
     if (player?.isBot) {
-      const rowIndex = this.botService.decideRowChoice(rows);
+      const rowIndex = this.botService.decideRowChoice(rows, player.totalPenalty, BotDifficulty.HARD);
       return this.chooseRow(gameId, action.playerId, rowIndex);
     }
 
@@ -650,8 +660,8 @@ export class GameService {
         data: {
           penaltyCard: newPenaltyCards as unknown as Prisma.JsonArray,
           roundPenaltyCard: newRoundPenaltyCards as unknown as Prisma.JsonArray,
-          totalPenalty: player.totalPenalty + penalty,
-          roundPenalty: player.roundPenalty + penalty,
+          totalPenalty: { increment: penalty },
+          roundPenalty: { increment: penalty },
           selectedCard: Prisma.JsonNull,
         },
       });
@@ -678,6 +688,15 @@ export class GameService {
 
     if (currentAction?.actionType !== 'choose_row') {
       throw new BadRequestException('You are not supposed to choose a row right now');
+    }
+
+    this.currentProcessingPlayer.delete(gameId);
+    this.currentAction.delete(gameId);
+
+    const pending = this.pendingPlayers.get(gameId);
+    if (pending) {
+      pending.shift();
+      this.pendingPlayers.set(gameId, pending);
     }
 
     const game = await this.prismaService.game.findUnique({
@@ -726,21 +745,11 @@ export class GameService {
       data: {
         penaltyCard: newPenaltyCards as unknown as Prisma.JsonArray,
         roundPenaltyCard: newRoundPenaltyCards as unknown as Prisma.JsonArray,
-        totalPenalty: player.totalPenalty + penalty,
-        roundPenalty: player.roundPenalty + penalty,
+        totalPenalty: { increment: penalty },
+        roundPenalty: { increment: penalty },
         selectedCard: Prisma.JsonNull,
       },
     });
-
-    // Удаляем игрока из очереди
-    const pending = this.pendingPlayers.get(gameId);
-    if (pending) {
-      pending.shift();
-      this.pendingPlayers.set(gameId, pending);
-    }
-
-    this.currentProcessingPlayer.delete(gameId);
-    this.currentAction.delete(gameId);
 
     return this.processNextPlayer(gameId);
   }
@@ -931,7 +940,10 @@ export class GameService {
             gamesWon: player.isWinner ? { increment: 1 } : undefined,
             totalPenalty: { increment: player.totalPenalty },
             bestScore: {
-              set: existingStats ? Math.min(player.totalPenalty, existingStats.totalPenalty) : player.totalPenalty,
+              set:
+                existingStats?.bestScore != null
+                  ? Math.min(player.totalPenalty, existingStats.bestScore)
+                  : player.totalPenalty,
             },
             lastPlayedAt: new Date(),
           },

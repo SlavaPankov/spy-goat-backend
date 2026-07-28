@@ -2,22 +2,27 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
-import { Card } from '../game/game.service';
+import { Card } from '../game/interfaces/card.interface';
+import { BotDifficulty } from './types/enum/bot-difficulty.enum';
+import { BotStrategyFactory } from './bot-strategy.factory';
 
 @Injectable()
 export class BotService {
   private readonly botNames = [
-    'Bot Alex',
-    'Bot Nika',
-    'Bot Max',
-    'Bot Luna',
-    'Bot Rex',
-    'Bot Zoe',
-    'Bot Kai',
-    'Bot Mia',
+    '__James Goat__',
+    '__Dart Vader__',
+    '__R2-D2__',
+    '__Spider Man__',
+    '__T-Rex__',
+    '__Zoe Kravitz',
+    '__Bot__',
+    '__Martin__',
   ];
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly strategyFactory: BotStrategyFactory
+  ) {}
 
   /**
    * Добирает пустые места в комнате ботами.
@@ -76,30 +81,21 @@ export class BotService {
 
   /**
    * Решение бота при выборе карты из руки.
-   * TODO: точка расширения под сложность (RandomStrategy / GreedyStrategy / ...).
    */
-  decideCardChoice(hand: Card[]): Card {
-    return hand[Math.floor(Math.random() * hand.length)];
+  decideCardChoice(hand: Card[], rows: Card[][], currentPenalty: number, difficulty: BotDifficulty | null): Card {
+    const strategy = this.strategyFactory.getStrategy(difficulty);
+
+    return strategy.decideCardChoice({ hand, rows, currentPenalty });
   }
 
   /**
    * Решение бота при выборе ряда, когда карта не подходит ни под один ряд.
    * Сейчас — минимизация штрафных очков в ряду.
-   * TODO: точка расширения под сложность.
    */
-  decideRowChoice(rows: Card[][]): number {
-    let bestIndex = 0;
-    let minPenalty = Infinity;
+  decideRowChoice(rows: Card[][], currentPenalty: number, difficulty: BotDifficulty | null): number {
+    const strategy = this.strategyFactory.getStrategy(difficulty);
 
-    for (let i = 0; i < rows.length; i += 1) {
-      const penalty = rows[i].reduce((sum, c) => sum + c.penalty, 0);
-      if (penalty < minPenalty) {
-        minPenalty = penalty;
-        bestIndex = i;
-      }
-    }
-
-    return bestIndex;
+    return strategy.decideRowChoice({ rows, currentPenalty });
   }
 
   private generateBotName(usedNames: string[]): string {
@@ -108,5 +104,26 @@ export class BotService {
       return available[Math.floor(Math.random() * available.length)];
     }
     return `Bot ${Math.floor(Math.random() * 10000)}`;
+  }
+
+  /**
+   * Удаляет ботов из комнаты
+   * */
+  async removeBotsFromRoom(roomId: string): Promise<void> {
+    const bots = await this.prismaService.player.findMany({
+      where: { roomId, isBot: true },
+      select: { id: true },
+    });
+
+    if (bots.length === 0) return;
+
+    await this.prismaService.player.deleteMany({
+      where: { roomId, isBot: true },
+    });
+
+    await this.prismaService.room.update({
+      where: { id: roomId },
+      data: { currentPlayers: { decrement: bots.length } },
+    });
   }
 }

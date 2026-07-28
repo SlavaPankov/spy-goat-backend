@@ -144,6 +144,7 @@ export class RoomsService {
       where: { id },
       include: {
         players: {
+          where: { isBot: false },
           omit: {
             userId: true,
             roomId: true,
@@ -322,7 +323,7 @@ export class RoomsService {
       }
 
       // 4. Проверяем, что пользователь ещё не в этой комнате (двойная защита)
-      const alreadyPlayer = room.players.find((p) => p.userId === userId);
+      const alreadyPlayer = room.players.some((p) => p.userId === userId);
 
       if (alreadyPlayer) {
         throw new BadRequestException(EErrorMessages.ALREADY_IN_ROOM);
@@ -388,7 +389,10 @@ export class RoomsService {
           gamesWon: newPlayer.isWinner ? { increment: 1 } : undefined,
           totalPenalty: { increment: newPlayer.totalPenalty },
           bestScore: {
-            set: existingStats ? Math.min(newPlayer.totalPenalty, existingStats.totalPenalty) : newPlayer.totalPenalty,
+            set:
+              existingStats?.bestScore != null
+                ? Math.min(newPlayer.totalPenalty, existingStats.bestScore)
+                : newPlayer.totalPenalty,
           },
           lastPlayedAt: new Date(),
         },

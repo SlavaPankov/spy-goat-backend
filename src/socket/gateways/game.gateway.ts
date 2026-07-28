@@ -6,13 +6,14 @@ import { SocketServerService } from '../socket-server.service';
 import { SocketEvent } from '../types/socket-event-enum.types';
 import { SocketResponseBuilder } from '../types/socket-response.types';
 import { EErrorMessages } from '../../types/enums/errorMessage';
-import { Card, GameService, GameState, RoundFinishedData } from '../../game/game.service';
+import { GameService, GameState, RoundFinishedData } from '../../game/game.service';
 import { WsJwtGuard } from '../guards/ws-jwt.guard';
+import { Card } from '../../game/interfaces/card.interface';
 
 @WebSocketGateway(8082, { cors: true })
 export class GameGateway {
   @WebSocketServer()
-  private server: Server;
+  private readonly server: Server;
 
   constructor(
     private readonly gameService: GameService,
@@ -27,6 +28,7 @@ export class GameGateway {
   ): void {
     if (result.isGameEnded) {
       this.socketServer.emitToRoom(roomId, SocketEvent.GAME_ENDED, { gameState: result }, eventId);
+
       return;
     }
 

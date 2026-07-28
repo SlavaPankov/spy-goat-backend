@@ -53,7 +53,7 @@ export class StatisticsService {
           userId,
           gamesPlayed: 1,
           gamesWon: data.isWinner ? 1 : 0,
-          totalPenalty: data.penalty ? 1 : 0,
+          totalPenalty: data.penalty,
           bestScore: data.penalty,
         },
       });
