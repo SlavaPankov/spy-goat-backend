@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StatisticsService } from '../statistics/statistics.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
 import { Prisma } from '@prisma/client';
+import { BotService } from '../bot/bot.service';
 
 export interface Card {
   number: number;
@@ -61,11 +62,6 @@ export interface RoundFinishedData {
   }[];
 }
 
-interface PlayedCard {
-  playerId: string;
-  card: Card;
-}
-
 @Injectable()
 export class GameService {
   private readonly pendingPlayers: Map<string, PlayerCard[]> = new Map();
@@ -76,7 +72,8 @@ export class GameService {
 
   constructor(
     private readonly statisticsService: StatisticsService,
-    private readonly prismaService: PrismaService
+    private readonly prismaService: PrismaService,
+    private readonly botService: BotService
   ) {}
 
   private parseJsonArray<T>(json: unknown): T[] {
@@ -259,12 +256,28 @@ export class GameService {
         isWinner: player.isWinner,
       })),
       status: game.status,
-      revealedCards: this.parseJsonArray<PlayedCard>(game.currentTurnCards),
+      revealedCards: this.parseJsonArray<PlayerCard>(game.currentTurnCards),
       allPlayersReady,
       waitingForRowChoice: currentAction?.actionType === 'choose_row',
       currentChoosingPlayer: currentPlayer?.playerId,
       currentAction,
     };
+  }
+
+  async autoSelectCardsForBots(gameId: string): Promise<void> {
+    const bots = await this.prismaService.player.findMany({
+      where: { gameId, isBot: true },
+    });
+
+    for (const bot of bots) {
+      const hand = this.parseJsonArray<Card>(bot.hand);
+      if (hand.length === 0) continue;
+
+      const card = this.botService.decideCardChoice(hand);
+
+      await this.selectCard(bot.id, card);
+      await this.confirmCardChoice(bot.id);
+    }
   }
 
   async startGame(roomId: string): Promise<GameState> {
@@ -292,13 +305,21 @@ export class GameService {
       throw new BadRequestException(EErrorMessages.ROOM_ALREADY_STARTED);
     }
 
-    if (room.players.length < 2) {
+    if (room.players.length < 1) {
       throw new BadRequestException(EErrorMessages.NOT_ENOUGH_PLAYERS);
     }
 
+    if (room.players.length < room.maxPlayers) {
+      await this.botService.fillRoomWithBots(roomId);
+    }
+    const fullRoom = await this.prismaService.room.findUnique({
+      where: { id: roomId },
+      include: { players: true },
+    });
+
     const deck = this.createDeck();
     const shuffled = this.shuffleDeck(deck);
-    const { playerHands, tableRows } = this.dealCards(shuffled, room.players.length);
+    const { playerHands, tableRows } = this.dealCards(shuffled, fullRoom!.players.length);
 
     const game = await this.prismaService.game.create({
       data: {
@@ -310,9 +331,9 @@ export class GameService {
       },
     });
 
-    for (let i = 0; i < room.players.length; i += 1) {
+    for (let i = 0; i < fullRoom!.players.length; i += 1) {
       await this.prismaService.player.update({
-        where: { id: room.players[i].id },
+        where: { id: fullRoom!.players[i].id },
         data: {
           gameId: game.id,
           hand: playerHands[i] as unknown as Prisma.JsonArray,
@@ -324,10 +345,10 @@ export class GameService {
 
     await this.prismaService.room.update({
       where: { id: roomId },
-      data: {
-        status: 'IN_PROGRESS',
-      },
+      data: { status: 'IN_PROGRESS' },
     });
+
+    await this.autoSelectCardsForBots(game.id);
 
     return this.getGameState(game.id);
   }
@@ -406,7 +427,7 @@ export class GameService {
     const allReady = updatedGame!.players.every((p) => p.isSelectedCardConfirmed);
 
     if (allReady) {
-      const currentTurnCards = this.parseJsonArray<PlayedCard>(updatedGame!.currentTurnCards);
+      const currentTurnCards = this.parseJsonArray<PlayerCard>(updatedGame!.currentTurnCards);
 
       for (const p of updatedGame!.players) {
         if (p.selectedCard) {
@@ -483,7 +504,7 @@ export class GameService {
       throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
     }
 
-    return this.parseJsonArray<PlayedCard>(game.currentTurnCards);
+    return this.parseJsonArray<PlayerCard>(game.currentTurnCards);
   }
 
   async startTurnProcessing(
@@ -498,7 +519,7 @@ export class GameService {
       throw new NotFoundException('Game not found');
     }
 
-    const currentTurnCards = this.parseJsonArray<PlayedCard>(game.currentTurnCards);
+    const currentTurnCards = this.parseJsonArray<PlayerCard>(game.currentTurnCards);
 
     // Сортируем игроков по возрастанию номера карты
     const sortedPlayers = currentTurnCards
@@ -557,11 +578,17 @@ export class GameService {
       return this.processNextPlayer(gameId);
     }
 
+    const player = await this.prismaService.player.findUnique({
+      where: { id: action.playerId },
+    });
+
+    if (player?.isBot) {
+      const rowIndex = this.botService.decideRowChoice(rows);
+      return this.chooseRow(gameId, action.playerId, rowIndex);
+    }
+
     const gameState = await this.getGameState(gameId);
-    return {
-      ...gameState,
-      action,
-    };
+    return { ...gameState, action };
   }
 
   private async applyAction(gameId: string, action: TurnAction): Promise<void> {
@@ -715,14 +742,13 @@ export class GameService {
     this.currentProcessingPlayer.delete(gameId);
     this.currentAction.delete(gameId);
 
-    // Переходим к следующему игроку
     return this.processNextPlayer(gameId);
   }
 
   private async finishRound(gameId: string): Promise<{
     isGameEnded: boolean;
     isRoundFinished: boolean;
-    roundData?: RoundFinishedData; // 🆕 Возвращаем данные раунда
+    roundData?: RoundFinishedData;
   }> {
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
@@ -758,8 +784,11 @@ export class GameService {
 
     if (allHandsEmpty) {
       const roundData = await this.getRoundFinishedData(gameId);
-
       const isGameEnded = await this.checkGameEnd(gameId);
+
+      if (!isGameEnded) {
+        await this.autoSelectCardsForBots(gameId);
+      }
 
       return {
         isGameEnded,
@@ -767,6 +796,8 @@ export class GameService {
         roundData: isGameEnded ? undefined : roundData,
       };
     }
+
+    await this.autoSelectCardsForBots(gameId);
 
     return { isGameEnded: false, isRoundFinished: false };
   }
@@ -791,7 +822,8 @@ export class GameService {
 
     if (loser) {
       await this.finishGame(gameId);
-      return true; // Игра закончена
+
+      return true;
     } else {
       const deck = this.createDeck();
       const shuffled = this.shuffleDeck(deck);

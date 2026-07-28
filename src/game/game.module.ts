@@ -7,12 +7,14 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { jwtConfigFactory } from '../auth/factory/jwt-config.factory';
 import { ChatModule } from '../chat/chat.module';
+import { BotModule } from '../bot/bot.module';
 
 @Module({
   providers: [GameService],
   imports: [
     PrismaModule,
     StatisticsModule,
+    BotModule,
     forwardRef(() => RoomsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
