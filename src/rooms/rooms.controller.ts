@@ -10,7 +10,6 @@ import {
   Query,
   UseGuards,
   BadRequestException,
-  Patch,
   Put,
 } from '@nestjs/common';
 import { RoomsService } from './rooms.service';

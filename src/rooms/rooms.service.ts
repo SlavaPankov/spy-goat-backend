@@ -172,7 +172,7 @@ export class RoomsService {
   }
 
   async create(dto: CreateRoomDto, creatorId: string) {
-    const { name, code, maxPlayers, isPrivate, password } = dto;
+    const { name, code, maxPlayers, isPrivate, password, withBots = true } = dto;
 
     return this.prismaService.$transaction(async (tx) => {
       // 1. Проверяем, не находится ли пользователь уже в другой комнате
@@ -219,7 +219,8 @@ export class RoomsService {
           name,
           code,
           maxPlayers,
-          currentPlayers: 1, // ← Устанавливаем 1, так как создатель присоединяется
+          withBots,
+          currentPlayers: 1,
           isPrivate,
           ...(isPrivate && { password: hashedPassword }),
           creator: {

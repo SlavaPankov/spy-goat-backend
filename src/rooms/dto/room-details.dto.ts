@@ -25,6 +25,9 @@ export class RoomDetailsDto {
   currentPlayers: number;
 
   @Expose()
+  withBots: boolean;
+
+  @Expose()
   @IsoDate()
   createdAt: Date;
 

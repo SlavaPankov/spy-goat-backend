@@ -23,6 +23,9 @@ export class RoomDto {
   status: string;
 
   @Expose()
+  withBots: boolean;
+
+  @Expose()
   @IsoDate()
   createdAt: Date;
 

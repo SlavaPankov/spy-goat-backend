@@ -309,11 +309,11 @@ export class GameService {
       throw new BadRequestException(EErrorMessages.ROOM_ALREADY_STARTED);
     }
 
-    if (room.players.length < 1) {
+    if (room.players.length < 2 && !room.withBots) {
       throw new BadRequestException(EErrorMessages.NOT_ENOUGH_PLAYERS);
     }
 
-    if (room.players.length < room.maxPlayers) {
+    if (room.players.length < room.maxPlayers && room.withBots) {
       await this.botService.fillRoomWithBots(roomId);
     }
     const fullRoom = await this.prismaService.room.findUnique({

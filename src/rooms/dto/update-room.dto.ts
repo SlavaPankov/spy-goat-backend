@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class UpdateRoomDto {
   @IsNotEmpty()
@@ -11,4 +11,8 @@ export class UpdateRoomDto {
   @IsNumber()
   @Min(2)
   maxPlayers: number;
+
+  @IsBoolean()
+  @IsOptional()
+  withBots: boolean;
 }
