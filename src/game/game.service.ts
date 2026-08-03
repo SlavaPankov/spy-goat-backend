@@ -367,7 +367,7 @@ export class GameService {
     }
 
     const hand = this.parseJsonArray<Card>(player.hand);
-    const cardExists = hand.find((c) => c.number === card.number);
+    const cardExists = hand.some((c) => c.number === card.number);
 
     if (!cardExists) {
       throw new BadRequestException(EErrorMessages.CARD_NOT_IN_HAND);
@@ -394,7 +394,7 @@ export class GameService {
       },
     });
 
-    if (!player || !player.game) {
+    if (!player?.game) {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
@@ -827,7 +827,7 @@ export class GameService {
       throw new NotFoundException(EErrorMessages.GAME_NOT_FOUND);
     }
 
-    const loser = game.players.find((player) => player.totalPenalty >= this.minGameScore);
+    const loser = game.players.some((player) => player.totalPenalty >= this.minGameScore);
 
     if (loser) {
       await this.finishGame(gameId);
@@ -1009,13 +1009,15 @@ export class GameService {
 
     const gameState = await this.getGameState(gameId);
 
-    const playersRoundScores = game.players.map((player) => ({
-      playerId: player.id,
-      username: player.isBot ? (player.botName ?? 'Bot') : (player.user?.username ?? 'Unknown'),
-      roundPenalty: player.roundPenalty,
-      roundPenaltyCards: this.parseJsonArray<Card>(player.roundPenaltyCard),
-      totalPenalty: player.totalPenalty,
-    }));
+    const playersRoundScores = game.players
+      .map((player) => ({
+        playerId: player.id,
+        username: player.isBot ? (player.botName ?? 'Bot') : (player.user?.username ?? 'Unknown'),
+        roundPenalty: player.roundPenalty,
+        roundPenaltyCards: this.parseJsonArray<Card>(player.roundPenaltyCard),
+        totalPenalty: player.totalPenalty,
+      }))
+      .sort((playerA, playerB) => playerA.totalPenalty - playerB.totalPenalty);
 
     return {
       gameState,

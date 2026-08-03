@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, forwardRef, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { compare } from 'bcryptjs';
@@ -7,6 +7,7 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SocketServerService } from '../socket/socket-server.service';
 
 export interface User {
   id: string;
@@ -20,8 +21,14 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly userService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    @Inject(forwardRef(() => SocketServerService))
+    private readonly socketServer: SocketServerService
   ) {}
+
+  private forceDisconnectUser(userId: string): void {
+    this.socketServer.getServer().in(`user:${userId}`).disconnectSockets(true);
+  }
 
   async loginUser(user: User) {
     const tokens = await this.signTokens(user.id, user.username);
@@ -72,6 +79,8 @@ export class AuthService {
     }
 
     await this.prisma.token.delete({ where: { userId, refreshToken } });
+
+    this.forceDisconnectUser(userId);
   }
 
   private async signTokens(userId: string, username: string) {

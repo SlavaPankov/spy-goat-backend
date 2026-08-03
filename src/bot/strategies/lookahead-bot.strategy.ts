@@ -37,7 +37,9 @@ export class LookaheadBotStrategy extends BaseBotStrategy implements BotStrategy
   }
 
   private estimateFutureCost(remainingHand: Card[], rowsAfter: Card[][], currentPenalty: number): number {
-    if (remainingHand.length === 0) return 0;
+    if (remainingHand.length === 0) {
+      return 0;
+    }
 
     const costs = remainingHand.map((card) => this.simulatePlacement(card, rowsAfter, currentPenalty).cost);
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { SocketServerService } from './socket-server.service';
 import { ConnectionGateway } from './gateways/connection.gateway';
 import { RoomGateway } from './gateways/room.gateway';
@@ -7,14 +7,17 @@ import { GameGateway } from './gateways/game.gateway';
 import { RoomsModule } from '../rooms/rooms.module';
 import { ChatModule } from '../chat/chat.module';
 import { GameModule } from '../game/game.module';
+import { PresenceModule } from '../presence/presence.module'; // ← добавляем
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PresenceGateway } from './gateways/presence.gateway';
 
 @Module({
   imports: [
     RoomsModule,
     GameModule,
     ChatModule,
+    forwardRef(() => PresenceModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -23,6 +26,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       }),
     }),
   ],
-  providers: [SocketServerService, ConnectionGateway, RoomGateway, GameGateway, ChatGateway],
+  providers: [SocketServerService, ConnectionGateway, RoomGateway, GameGateway, ChatGateway, PresenceGateway],
+  exports: [SocketServerService],
 })
 export class SocketModule {}

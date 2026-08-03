@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -12,6 +12,8 @@ import { UserLoginStrategy } from './security/user-login.strategy';
 import { jwtConfigFactory } from './factory/jwt-config.factory';
 import { RefreshGuard } from './guards/refresh.guard';
 import { RefreshJwtStrategy } from './security/refresh-jwt.strategy';
+import { PresenceModule } from '../presence/presence.module';
+import { SocketModule } from '../socket/socket.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { RefreshJwtStrategy } from './security/refresh-jwt.strategy';
     }),
     PrismaModule,
     UsersModule,
+    SocketModule,
+    forwardRef(() => PresenceModule),
   ],
   controllers: [AuthController],
   providers: [AuthService, UserLoginStrategy, SessionJwtStrategy, RefreshGuard, RefreshJwtStrategy],

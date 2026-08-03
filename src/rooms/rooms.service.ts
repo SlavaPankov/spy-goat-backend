@@ -154,6 +154,8 @@ export class RoomsService {
               select: {
                 id: true,
                 username: true,
+                isOnline: true,
+                lastSeenAt: true,
               },
             },
           },
@@ -514,6 +516,8 @@ export class RoomsService {
               select: {
                 id: true,
                 username: true,
+                isOnline: true,
+                lastSeenAt: true,
               },
             },
           },
@@ -628,6 +632,8 @@ export class RoomsService {
               select: {
                 id: true,
                 username: true,
+                isOnline: true,
+                lastSeenAt: true,
               },
             },
           },

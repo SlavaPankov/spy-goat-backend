@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import { IsoDate } from '../../common/decorators/iso-date.decorator';
+import { IsBoolean } from 'class-validator';
 
 export class UserDto {
   @Expose()
@@ -27,4 +28,12 @@ export class UserDto {
   @Expose()
   @IsoDate()
   updatedAt: Date;
+
+  @Expose()
+  @IsoDate()
+  lastSeenAt: Date;
+
+  @Expose()
+  @IsBoolean()
+  isOnline: boolean;
 }

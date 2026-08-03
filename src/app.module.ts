@@ -12,6 +12,8 @@ import JwtAuthGuard from './auth/guards/jwt-auth.guard';
 import { CustomHttpExceptionFilter } from './utils/filters/customHttpException.filter';
 import { ChatModule } from './chat/chat.module';
 import { SocketModule } from './socket/socket.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { PresenceModule } from './presence/presence.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { SocketModule } from './socket/socket.module';
     JwtModule,
     ChatModule,
     SocketModule,
+    PresenceModule,
+    EventEmitterModule.forRoot(),
   ],
   providers: [
     {
