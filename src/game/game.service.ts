@@ -64,8 +64,9 @@ export class GameService {
   private readonly pendingPlayers: Map<string, PlayerCard[]> = new Map();
   private readonly currentProcessingPlayer: Map<string, PlayerCard> = new Map();
   private readonly currentAction: Map<string, TurnAction> = new Map();
-  private readonly handSize = 2;
+  private readonly handSize = 10;
   private readonly minGameScore = 66;
+  private readonly confirmLocks: Set<string> = new Set();
 
   constructor(
     private readonly statisticsService: StatisticsService,
@@ -383,18 +384,9 @@ export class GameService {
   }
 
   async confirmCardChoice(playerId: string): Promise<{ allReady: boolean; gameId: string }> {
-    const player = await this.prismaService.player.findUnique({
-      where: { id: playerId },
-      include: {
-        game: {
-          include: {
-            players: true,
-          },
-        },
-      },
-    });
+    const player = await this.prismaService.player.findUnique({ where: { id: playerId } });
 
-    if (!player?.game) {
+    if (!player?.gameId) {
       throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
     }
 
@@ -403,7 +395,6 @@ export class GameService {
     }
 
     const selectedCard = this.parseJson<Card>(player.selectedCard);
-
     const hand = this.parseJsonArray<Card>(player.hand);
     const cardIndex = hand.findIndex((c) => c.number === selectedCard.number);
 
@@ -421,40 +412,42 @@ export class GameService {
       },
     });
 
-    const updatedGame = await this.prismaService.game.findUnique({
-      where: { id: player.gameId! },
-      include: {
-        players: true,
-      },
-    });
+    const gameId = player.gameId;
 
-    const allReady = updatedGame!.players.every((p) => p.isSelectedCardConfirmed);
+    while (this.confirmLocks.has(gameId)) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    this.confirmLocks.add(gameId);
 
-    if (allReady) {
-      const currentTurnCards = this.parseJsonArray<PlayerCard>(updatedGame!.currentTurnCards);
+    try {
+      const updatedGame = await this.prismaService.game.findUnique({
+        where: { id: gameId },
+        include: { players: true },
+      });
 
-      for (const p of updatedGame!.players) {
-        if (p.selectedCard) {
-          const card = this.parseJson<Card>(p.selectedCard);
-          currentTurnCards.push({
-            playerId: p.id,
-            card,
+      const allReady = updatedGame!.players.every((p) => p.isSelectedCardConfirmed);
+
+      if (allReady) {
+        const currentTurnCards = this.parseJsonArray<PlayerCard>(updatedGame!.currentTurnCards);
+
+        if (currentTurnCards.length === 0) {
+          for (const p of updatedGame!.players) {
+            if (p.selectedCard) {
+              currentTurnCards.push({ playerId: p.id, card: this.parseJson<Card>(p.selectedCard) });
+            }
+          }
+
+          await this.prismaService.game.update({
+            where: { id: gameId },
+            data: { currentTurnCards: currentTurnCards as unknown as Prisma.JsonArray },
           });
         }
       }
 
-      await this.prismaService.game.update({
-        where: { id: player.gameId! },
-        data: {
-          currentTurnCards: currentTurnCards as unknown as Prisma.JsonArray,
-        },
-      });
+      return { allReady, gameId };
+    } finally {
+      this.confirmLocks.delete(gameId);
     }
-
-    return {
-      allReady,
-      gameId: player.gameId!,
-    };
   }
 
   async declineCardChoice(playerId: string): Promise<{ gameId: string }> {
@@ -514,6 +507,18 @@ export class GameService {
   async startTurnProcessing(
     gameId: string
   ): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean; roundData?: RoundFinishedData }> {
+    const existingPending = this.pendingPlayers.get(gameId);
+
+    if (existingPending && existingPending.length > 0) {
+      const gameState = await this.getGameState(gameId);
+      const currentAction = this.currentAction.get(gameId);
+
+      return {
+        ...gameState,
+        action: currentAction ?? { playerId: '', actionType: 'place' },
+      };
+    }
+
     const game = await this.prismaService.game.findUnique({
       where: { id: gameId },
       include: { players: true },
@@ -525,14 +530,12 @@ export class GameService {
 
     const currentTurnCards = this.parseJsonArray<PlayerCard>(game.currentTurnCards);
 
-    // Сортируем игроков по возрастанию номера карты
     const sortedPlayers = currentTurnCards
       .map((pc) => ({ playerId: pc.playerId, card: pc.card }))
       .sort((a, b) => a.card.number - b.card.number);
 
     this.pendingPlayers.set(gameId, sortedPlayers);
 
-    // Начинаем обработку первого игрока
     return this.processNextPlayer(gameId);
   }
 
@@ -547,6 +550,8 @@ export class GameService {
     const pending = this.pendingPlayers.get(gameId);
 
     if (!pending || pending.length === 0) {
+      this.pendingPlayers.delete(gameId);
+
       const { isRoundFinished, roundData, isGameEnded } = await this.finishRound(gameId);
       const gameState = await this.getGameState(gameId);
 

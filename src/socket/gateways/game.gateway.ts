@@ -14,6 +14,7 @@ import { Card } from '../../game/interfaces/card.interface';
 export class GameGateway {
   @WebSocketServer()
   private readonly server: Server;
+  private readonly scheduledTurnProcessing: Set<string> = new Set();
 
   constructor(
     private readonly gameService: GameService,
@@ -97,6 +98,11 @@ export class GameGateway {
       );
 
       if (result.allReady) {
+        if (this.scheduledTurnProcessing.has(result.gameId)) {
+          return;
+        }
+        this.scheduledTurnProcessing.add(result.gameId);
+
         const revealedCards = await this.gameService.revealCards(result.gameId);
 
         this.socketServer.emitToRoom(
@@ -131,9 +137,11 @@ export class GameGateway {
               this.socketServer.emitError(client, SocketEvent.ERROR, error, {
                 ...(data.eventId && { eventId: data.eventId }),
               });
+            } finally {
+              this.scheduledTurnProcessing.delete(result.gameId);
             }
           })();
-        }, 3000);
+        }, 4000);
       }
     } catch (error) {
       this.socketServer.emitError(client, SocketEvent.GAME_CARD_CONFIRMED, error, {

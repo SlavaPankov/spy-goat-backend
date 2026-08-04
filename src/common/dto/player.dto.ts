@@ -1,6 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { IsoDate } from '../decorators/iso-date.decorator';
 import { UserDto } from '../../users/dto/user.dto';
+import { Card } from '../../game/interfaces/card.interface';
 
 export class PlayerDto {
   @Expose()
@@ -50,4 +51,7 @@ export class PlayerDto {
   @Expose()
   @Type(() => UserDto)
   user: UserDto;
+
+  @Expose()
+  roundPenaltyCard: Card[];
 }
