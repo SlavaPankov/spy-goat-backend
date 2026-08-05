@@ -121,7 +121,7 @@ export class ChatService {
     if (replyToId) {
       const replyTo = await this.prismaService.message.findUnique({ where: { id: replyToId } });
 
-      if (!replyTo || replyTo.roomId !== roomId) {
+      if (replyTo?.roomId !== roomId) {
         throw new BadRequestException(EErrorMessages.INVALID_PLAYER_TARGET);
       }
     }
@@ -223,7 +223,7 @@ export class ChatService {
     ]);
 
     return {
-      messages: messages.reverse().map(({ _count, ...message }) => ({
+      messages: messages.toReversed().map(({ _count, ...message }) => ({
         ...this.decryptMessage(message),
         readCount: _count.reads,
       })),

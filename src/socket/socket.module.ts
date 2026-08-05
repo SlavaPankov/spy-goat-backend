@@ -11,6 +11,7 @@ import { PresenceModule } from '../presence/presence.module'; // ← добав�
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PresenceGateway } from './gateways/presence.gateway';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PresenceGateway } from './gateways/presence.gateway';
     GameModule,
     ChatModule,
     forwardRef(() => PresenceModule),
+    forwardRef(() => NotificationModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

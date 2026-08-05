@@ -28,4 +28,7 @@ export const enum EErrorMessages {
   MESSAGE_FORBIDDEN = 'Cannot edit others messages',
   MESSAGE_FORBIDDEN_DELETED = 'Cannot edit deleted message',
   MESSAGE_ALREADY_DELETED = 'Message already deleted',
+
+  NOTIFICATION_NOT_FOUND = 'Not found notification with id',
+  WRONG_USER = 'Notification with id does not belongs to user',
 }

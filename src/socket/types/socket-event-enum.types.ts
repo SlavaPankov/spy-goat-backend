@@ -57,6 +57,11 @@ export const enum SocketEvent {
   CHAT_MESSAGE_EDITED = 'chat:messageEdited',
   CHAT_MESSAGE_DELETED = 'chat:messageDeleted',
 
+  // Event -> Client
+  NOTIFICATION_NEW = 'notification:new',
+  NOTIFICATION_READ = 'notification:read',
+  NOTIFICATION_ALL_READ = 'notification:allRead',
+
   // System
   ERROR = 'error',
 }

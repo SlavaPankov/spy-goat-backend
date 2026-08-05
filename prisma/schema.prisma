@@ -30,6 +30,8 @@ model User {
   isOnline Boolean @default(false)
   lastSeenAt DateTime?
 
+  notifications Notification[]
+
   @@index([username])
 }
 
@@ -226,4 +228,17 @@ model Token {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  payload Json @default("{}")
+  readAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
