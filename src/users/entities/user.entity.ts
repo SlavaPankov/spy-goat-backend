@@ -4,13 +4,13 @@ export class UserEntity {
   id: string;
   username: string;
   version: number;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string;
+  updatedAt: string;
   name: string | null;
   surname: string | null;
   email: string | null;
   isOnline: boolean;
-  lastSeenAt: number | null;
+  lastSeenAt: string | null;
 
   constructor(user: User) {
     this.id = user.id;
@@ -19,9 +19,9 @@ export class UserEntity {
     this.name = user.name;
     this.surname = user.surname;
     this.email = user.email;
-    this.createdAt = new Date(user.createdAt).getTime();
-    this.updatedAt = new Date(user.updatedAt).getTime();
+    this.createdAt = new Date(user.createdAt).toISOString();
+    this.updatedAt = new Date(user.updatedAt).toISOString();
     this.isOnline = user.isOnline;
-    this.lastSeenAt = user.lastSeenAt ? new Date(user.lastSeenAt).getTime() : null;
+    this.lastSeenAt = user.lastSeenAt ? new Date(user.lastSeenAt).toISOString() : null;
   }
 }

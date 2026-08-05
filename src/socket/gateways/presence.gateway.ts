@@ -17,7 +17,15 @@ export class PresenceGateway {
 
     ids.forEach((id) => client.join(`presence:${id}`));
 
-    return this.presenceService.getBulkStatus(ids);
+    const status = await this.presenceService.getBulkStatus(ids);
+
+    const selfId = (client.data as Record<string, unknown>).userId as string | undefined;
+
+    if (selfId && ids.includes(selfId)) {
+      status[selfId] = { isOnline: true, lastSeenAt: null };
+    }
+
+    return status;
   }
 
   @SubscribeMessage('presence:unsubscribe')
