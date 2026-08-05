@@ -47,6 +47,12 @@ export interface GameState {
   revealedCards?: { playerId: string; card: Card }[];
 }
 
+export type StepCallback = (step: {
+  gameState: GameState;
+  action: TurnAction;
+  phase: 'row-chosen' | 'applied';
+}) => Promise<void>;
+
 export interface RoundFinishedData {
   gameState: GameState;
   roundNumber: number;
@@ -134,16 +140,16 @@ export class GameService {
 
     for (let i = 0; i < this.handSize; i += 1) {
       for (let p = 0; p < playerCount; p++) {
-        index += 1;
-
         playerHands[p].push(deck[index]);
+
+        index += 1;
       }
     }
 
     for (let i = 0; i < 4; i += 1) {
-      index += 1;
-
       tableRows[i].push(deck[index]);
+
+      index += 1;
     }
 
     return {
@@ -505,7 +511,8 @@ export class GameService {
   }
 
   async startTurnProcessing(
-    gameId: string
+    gameId: string,
+    onStep?: StepCallback
   ): Promise<GameState & { action: TurnAction; isRoundFinished?: boolean; roundData?: RoundFinishedData }> {
     const existingPending = this.pendingPlayers.get(gameId);
 
@@ -536,10 +543,13 @@ export class GameService {
 
     this.pendingPlayers.set(gameId, sortedPlayers);
 
-    return this.processNextPlayer(gameId);
+    return this.processNextPlayer(gameId, onStep);
   }
 
-  async processNextPlayer(gameId: string): Promise<
+  async processNextPlayer(
+    gameId: string,
+    onStep?: StepCallback
+  ): Promise<
     GameState & {
       action: TurnAction;
       isRoundFinished?: boolean;
@@ -588,9 +598,17 @@ export class GameService {
       pending.shift();
       this.pendingPlayers.set(gameId, pending);
 
+      if (action.actionType === 'take_row' && onStep) {
+        await onStep({ gameState: await this.getGameState(gameId), action, phase: 'row-chosen' });
+      }
+
       await this.applyAction(gameId, action);
 
-      return this.processNextPlayer(gameId);
+      if (onStep) {
+        await onStep({ gameState: await this.getGameState(gameId), action, phase: 'applied' });
+      }
+
+      return this.processNextPlayer(gameId, onStep);
     }
 
     const player = await this.prismaService.player.findUnique({
@@ -599,7 +617,8 @@ export class GameService {
 
     if (player?.isBot) {
       const rowIndex = this.botService.decideRowChoice(rows, player.totalPenalty, BotDifficulty.HARD);
-      return this.chooseRow(gameId, action.playerId, rowIndex);
+
+      return this.chooseRow(gameId, action.playerId, rowIndex, onStep);
     }
 
     const gameState = await this.getGameState(gameId);
@@ -676,7 +695,8 @@ export class GameService {
   async chooseRow(
     gameId: string,
     playerId: string,
-    rowIndex: number
+    rowIndex: number,
+    onStep?: StepCallback
   ): Promise<
     GameState & {
       action: TurnAction;
@@ -756,7 +776,7 @@ export class GameService {
       },
     });
 
-    return this.processNextPlayer(gameId);
+    return this.processNextPlayer(gameId, onStep);
   }
 
   private async finishRound(gameId: string): Promise<{

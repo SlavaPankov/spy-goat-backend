@@ -6,9 +6,13 @@ import { SocketServerService } from '../socket-server.service';
 import { SocketEvent } from '../types/socket-event-enum.types';
 import { SocketResponseBuilder } from '../types/socket-response.types';
 import { EErrorMessages } from '../../types/enums/errorMessage';
-import { GameService, GameState, RoundFinishedData } from '../../game/game.service';
+import { GameService, GameState, RoundFinishedData, StepCallback } from '../../game/game.service';
 import { WsJwtGuard } from '../guards/ws-jwt.guard';
 import { Card } from '../../game/interfaces/card.interface';
+import { sleep } from '../../utils/sleep';
+
+const ROW_CHOSEN_PAUSE_MS = 350;
+const STEP_PAUSE_MS = 500;
 
 @WebSocketGateway(8082, { cors: true })
 export class GameGateway {
@@ -117,7 +121,23 @@ export class GameGateway {
         setTimeout(() => {
           void (async () => {
             try {
-              const turnResult = await this.gameService.startTurnProcessing(result.gameId);
+              const onStep: StepCallback = async ({ gameState, action, phase }) => {
+                if (phase === 'row-chosen') {
+                  this.socketServer.emitToRoom(
+                    data.roomId,
+                    SocketEvent.GAME_ROW_CHOSEN,
+                    { playerId: action.playerId, rowIndex: action.rowIndex },
+                    data.eventId
+                  );
+                  await sleep(ROW_CHOSEN_PAUSE_MS);
+                  return;
+                }
+
+                this.socketServer.emitToRoom(data.roomId, SocketEvent.GAME_TURN_FINISHED, { gameState }, data.eventId);
+                await sleep(STEP_PAUSE_MS);
+              };
+
+              const turnResult = await this.gameService.startTurnProcessing(result.gameId, onStep);
 
               if (turnResult.action.actionType === 'choose_row') {
                 this.socketServer.emitToRoom(
@@ -196,21 +216,37 @@ export class GameGateway {
     @MessageBody() data: { gameId: string; playerId: string; rowIndex: number; eventId?: string }
   ) {
     try {
-      const result = await this.gameService.chooseRow(data.gameId, data.playerId, data.rowIndex);
+      const { roomId } = await this.gameService.getGameState(data.gameId);
 
       this.socketServer.emitToRoom(
-        result.roomId,
+        roomId,
         SocketEvent.GAME_ROW_CHOSEN,
-        {
-          playerId: data.playerId,
-          rowIndex: data.rowIndex,
-        },
+        { playerId: data.playerId, rowIndex: data.rowIndex },
         data.eventId
       );
+      await sleep(ROW_CHOSEN_PAUSE_MS);
+
+      const onStep: StepCallback = async ({ gameState, action, phase }) => {
+        if (phase === 'row-chosen') {
+          this.socketServer.emitToRoom(
+            roomId,
+            SocketEvent.GAME_ROW_CHOSEN,
+            { playerId: action.playerId, rowIndex: action.rowIndex },
+            data.eventId
+          );
+          await sleep(ROW_CHOSEN_PAUSE_MS);
+          return;
+        }
+
+        this.socketServer.emitToRoom(roomId, SocketEvent.GAME_TURN_FINISHED, { gameState }, data.eventId);
+        await sleep(STEP_PAUSE_MS);
+      };
+
+      const result = await this.gameService.chooseRow(data.gameId, data.playerId, data.rowIndex, onStep);
 
       if (result.action?.actionType === 'choose_row') {
         this.socketServer.emitToRoom(
-          result.roomId,
+          roomId,
           SocketEvent.GAME_NEED_ROW_CHOICE,
           {
             currentChoosingPlayer: result.currentChoosingPlayer,
@@ -220,7 +256,7 @@ export class GameGateway {
           data.eventId
         );
       } else {
-        this.emitTurnResult(result.roomId, result, data.eventId);
+        this.emitTurnResult(roomId, result, data.eventId);
       }
     } catch (error) {
       this.socketServer.emitError(client, SocketEvent.GAME_CHOOSE_ROW, error, {
