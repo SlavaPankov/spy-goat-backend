@@ -30,5 +30,7 @@ export const enum EErrorMessages {
   MESSAGE_ALREADY_DELETED = 'Message already deleted',
 
   NOTIFICATION_NOT_FOUND = 'Not found notification with id',
-  WRONG_USER = 'Notification with id does not belongs to user',
+  NOT_ALLOWED_SELF_FRIEND = 'Cannot add yourself as a friend',
+  FRIENDS_REQUEST_NOT_FOUND = 'Request not found',
+  NOT_YOUR_FRIENDS = 'You are not a friends',
 }
