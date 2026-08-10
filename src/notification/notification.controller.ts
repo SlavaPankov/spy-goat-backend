@@ -3,7 +3,7 @@ import { NotificationService } from './notification.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { QueryDto } from './dto/notification-query.dto';
 
-@Controller('notification')
+@Controller('notifications')
 @UseInterceptors(ClassSerializerInterceptor)
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}

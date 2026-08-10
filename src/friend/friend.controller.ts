@@ -13,7 +13,7 @@ import { FriendService } from './friend.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 
-@Controller('friend')
+@Controller('friends')
 @UseInterceptors(ClassSerializerInterceptor)
 export class FriendController {
   constructor(private readonly friendService: FriendService) {}
@@ -51,5 +51,10 @@ export class FriendController {
   @Get('outgoing')
   getOutgoingList(@CurrentUser('userId') userId: string) {
     return this.friendService.listOutgoing(userId);
+  }
+
+  @Get('status/:id')
+  getStatusWith(@CurrentUser('userId') userId: string, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
+    return this.friendService.getStatusWith(userId, id);
   }
 }

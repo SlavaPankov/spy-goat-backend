@@ -5,6 +5,7 @@ import { EErrorMessages } from '../types/enums/errorMessage';
 import { Friendship, FriendshipStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { FriendDto, FriendshipActionDto, IncomingFriendRequestDto, OutgoingFriendRequestDto } from './dto/friend.dto';
+import { FriendshipStatusWith } from './types/friendship-status-with.type';
 
 @Injectable()
 export class FriendService {
@@ -250,5 +251,39 @@ export class FriendService {
       })),
       { excludeExtraneousValues: true }
     );
+  }
+
+  async getStatusWith(userId: string, otherUserId: string): Promise<FriendshipStatusWith> {
+    if (userId === otherUserId) {
+      return { status: 'SELF' };
+    }
+
+    const [ownDirection, reverseDirection] = await Promise.all([
+      this.prismaService.friendship.findUnique({
+        where: { requesterId_addresseeId: { requesterId: userId, addresseeId: otherUserId } },
+      }),
+      this.prismaService.friendship.findUnique({
+        where: { requesterId_addresseeId: { requesterId: otherUserId, addresseeId: userId } },
+      }),
+    ]);
+
+    const friendship = ownDirection ?? reverseDirection;
+
+    if (!friendship) {
+      return { status: 'NONE' };
+    }
+
+    if (friendship.status === FriendshipStatus.ACCEPTED) {
+      return { status: 'FRIENDS', friendshipId: friendship.id };
+    }
+
+    if (friendship.status === FriendshipStatus.DECLINED) {
+      return { status: 'DECLINED', friendshipId: friendship.id };
+    }
+
+    return {
+      status: ownDirection ? 'OUTGOING_PENDING' : 'INCOMING_PENDING',
+      friendshipId: friendship.id,
+    };
   }
 }
