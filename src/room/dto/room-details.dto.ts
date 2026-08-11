@@ -1,6 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { IsoDate } from '../../common/decorators/iso-date.decorator';
-import { UserDto } from '../../users/dto/user.dto';
+import { UserDto } from '../../user/dto/user.dto';
 
 export class RoomDetailsDto {
   @Expose()

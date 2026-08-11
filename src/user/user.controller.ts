@@ -1,11 +1,11 @@
 import { ClassSerializerInterceptor, Controller, Get, Param, ParseUUIDPipe, UseInterceptors } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UserService } from './user.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('users')
 @UseInterceptors(ClassSerializerInterceptor)
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+export class UserController {
+  constructor(private readonly usersService: UserService) {}
 
   @Get()
   findAll() {

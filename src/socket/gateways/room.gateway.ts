@@ -2,7 +2,7 @@
 import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
 import { UseGuards } from '@nestjs/common';
 import { Socket } from 'socket.io';
-import { RoomsService } from '../../rooms/rooms.service';
+import { RoomService } from '../../room/room.service';
 import { SocketServerService } from '../socket-server.service';
 import { SocketEvent } from '../types/socket-event-enum.types';
 import { SocketResponseBuilder } from '../types/socket-response.types';
@@ -12,7 +12,7 @@ import { WsJwtGuard } from '../guards/ws-jwt.guard';
 @WebSocketGateway(8082, { cors: true })
 export class RoomGateway {
   constructor(
-    private readonly roomService: RoomsService,
+    private readonly roomService: RoomService,
     private readonly gameService: GameService,
     private readonly socketServer: SocketServerService
   ) {}

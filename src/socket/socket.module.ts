@@ -4,7 +4,7 @@ import { ConnectionGateway } from './gateways/connection.gateway';
 import { RoomGateway } from './gateways/room.gateway';
 import { ChatGateway } from './gateways/chat.gateway';
 import { GameGateway } from './gateways/game.gateway';
-import { RoomsModule } from '../rooms/rooms.module';
+import { RoomModule } from '../room/room.module';
 import { ChatModule } from '../chat/chat.module';
 import { GameModule } from '../game/game.module';
 import { PresenceModule } from '../presence/presence.module'; // ← добавляем
@@ -15,7 +15,7 @@ import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
-    RoomsModule,
+    RoomModule,
     GameModule,
     ChatModule,
     forwardRef(() => PresenceModule),

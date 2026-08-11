@@ -12,9 +12,9 @@ import {
 import { StatusCodes } from 'http-status-codes';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { CreateUserDto } from '../users/dto/create-user.dto';
+import { CreateUserDto } from '../user/dto/create-user.dto';
 import { UserCredentialsValidationGuard } from './guards/user-credentials-validation.guard';
-import { UserEntity } from 'src/users/entities/user.entity';
+import { UserEntity } from 'src/user/entities/user.entity';
 import { AuthenticatedRequest } from '../types/interfaces/authenticatedRequest';
 import { Response, Request } from 'express';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';

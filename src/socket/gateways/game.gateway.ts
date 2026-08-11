@@ -1,7 +1,7 @@
 import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { UseGuards } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
-import { RoomsService } from '../../rooms/rooms.service';
+import { RoomService } from '../../room/room.service';
 import { SocketServerService } from '../socket-server.service';
 import { SocketEvent } from '../types/socket-event-enum.types';
 import { SocketResponseBuilder } from '../types/socket-response.types';
@@ -22,7 +22,7 @@ export class GameGateway {
 
   constructor(
     private readonly gameService: GameService,
-    private readonly roomService: RoomsService,
+    private readonly roomService: RoomService,
     private readonly socketServer: SocketServerService
   ) {}
 

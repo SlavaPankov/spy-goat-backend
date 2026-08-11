@@ -9,7 +9,7 @@ import { plainToInstance } from 'class-transformer';
 import { UserDto } from './dto/user.dto';
 
 @Injectable()
-export class UsersService {
+export class UserService {
   constructor(readonly prisma: PrismaService) {}
 
   private async hashPassword(password: string): Promise<string> {

@@ -22,7 +22,7 @@ import { RoomPlayersStats } from './dto/room-players-stats.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
-export class RoomsService {
+export class RoomService {
   constructor(
     private readonly prismaService: PrismaService,
     @Inject(forwardRef(() => GameService))

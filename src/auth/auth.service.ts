@@ -3,9 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { compare } from 'bcryptjs';
 
-import { CreateUserDto } from '../users/dto/create-user.dto';
+import { CreateUserDto } from '../user/dto/create-user.dto';
 
-import { UsersService } from '../users/users.service';
+import { UserService } from '../user/user.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SocketServerService } from '../socket/socket-server.service';
 
@@ -19,7 +19,7 @@ export interface User {
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly userService: UsersService,
+    private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => SocketServerService))

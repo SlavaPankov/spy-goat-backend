@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { RoomsModule } from './rooms/rooms.module';
+import { UserModule } from './user/user.module';
+import { RoomModule } from './room/room.module';
 import { GameModule } from './game/game.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { StatisticsModule } from './statistics/statistics.module';
@@ -20,10 +20,10 @@ import { FriendModule } from './friend/friend.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    UsersModule,
+    UserModule,
     AuthModule,
     ConfigModule,
-    RoomsModule,
+    RoomModule,
     GameModule,
     LobbyModule,
     StatisticsModule,

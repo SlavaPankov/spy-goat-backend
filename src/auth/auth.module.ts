@@ -4,7 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { PrismaModule } from '../prisma/prisma.module';
-import { UsersModule } from '../users/users.module';
+import { UserModule } from '../user/user.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { SessionJwtStrategy } from './security/session-jwt.strategy';
@@ -25,7 +25,7 @@ import { SocketModule } from '../socket/socket.module';
       useFactory: jwtConfigFactory,
     }),
     PrismaModule,
-    UsersModule,
+    UserModule,
     SocketModule,
     forwardRef(() => PresenceModule),
   ],

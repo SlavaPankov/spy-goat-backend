@@ -2,7 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { GameService } from './game.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StatisticsModule } from '../statistics/statistics.module';
-import { RoomsModule } from '../rooms/rooms.module';
+import { RoomModule } from '../room/room.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { jwtConfigFactory } from '../auth/factory/jwt-config.factory';
@@ -15,7 +15,7 @@ import { BotModule } from '../bot/bot.module';
     PrismaModule,
     StatisticsModule,
     BotModule,
-    forwardRef(() => RoomsModule),
+    forwardRef(() => RoomModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

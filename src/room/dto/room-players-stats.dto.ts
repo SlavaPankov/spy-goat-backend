@@ -1,5 +1,5 @@
 import { Expose, Type } from 'class-transformer';
-import { UserDto } from '../../users/dto/user.dto';
+import { UserDto } from '../../user/dto/user.dto';
 import { IsoDate } from '../../common/decorators/iso-date.decorator';
 
 export class RoomPlayersStats {

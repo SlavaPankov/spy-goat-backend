@@ -12,7 +12,7 @@ import {
   BadRequestException,
   Put,
 } from '@nestjs/common';
-import { RoomsService } from './rooms.service';
+import { RoomService } from './room.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { RoomStatus } from '@prisma/client';
@@ -21,8 +21,8 @@ import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Controller('rooms')
 @UseInterceptors(ClassSerializerInterceptor)
-export class RoomsController {
-  constructor(private readonly roomsService: RoomsService) {}
+export class RoomController {
+  constructor(private readonly roomsService: RoomService) {}
 
   @Get()
   findAll(
