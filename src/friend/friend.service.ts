@@ -35,9 +35,11 @@ export class FriendService {
     });
 
     if (friendshipStatus === FriendshipStatus.ACCEPTED && type) {
-      await this.notificationService.create(updated.requesterId, type, {
-        fromUserId: updated.addresseeId,
-      });
+      await this.notificationService.create(
+        updated.requesterId,
+        type,
+        this.buildFriendPayload(updated, updated.requesterId)
+      );
     }
 
     return this.toActionDto(updated, userId);
@@ -59,6 +61,26 @@ export class FriendService {
       { id: friendship.id, status: friendship.status, createdAt: friendship.createdAt, otherUser },
       { excludeExtraneousValues: true }
     );
+  }
+
+  private buildFriendPayload(
+    friendship: Friendship & {
+      requester: { id: string; username: string; isOnline: boolean; lastSeenAt: Date | null };
+      addressee: { id: string; username: string; isOnline: boolean; lastSeenAt: Date | null };
+    },
+    recipientId: string
+  ) {
+    const otherUser = friendship.requesterId === recipientId ? friendship.addressee : friendship.requester;
+
+    return {
+      friendshipId: friendship.id,
+      otherUser: {
+        id: otherUser.id,
+        username: otherUser.username,
+        isOnline: otherUser.isOnline,
+        lastSeenAt: otherUser.lastSeenAt,
+      },
+    };
   }
 
   async sendRequest(requesterId: string, addresseeId: string) {
@@ -86,9 +108,11 @@ export class FriendService {
         include,
       });
 
-      await this.notificationService.create(reverseDirection.requesterId, 'FRIEND_ACCEPTED', {
-        fromUserId: requesterId,
-      });
+      await this.notificationService.create(
+        reverseDirection.requesterId,
+        'FRIEND_ACCEPTED',
+        this.buildFriendPayload(accepted, reverseDirection.requesterId)
+      );
 
       return this.toActionDto(accepted, requesterId);
     }
@@ -108,7 +132,11 @@ export class FriendService {
         include,
       });
 
-      await this.notificationService.create(addresseeId, 'FRIEND_REQUEST', { fromUserId: requesterId });
+      await this.notificationService.create(
+        addresseeId,
+        'FRIEND_REQUEST',
+        this.buildFriendPayload(reopened, addresseeId)
+      );
 
       return this.toActionDto(reopened, requesterId);
     }
@@ -118,7 +146,7 @@ export class FriendService {
       include,
     });
 
-    await this.notificationService.create(addresseeId, 'FRIEND_REQUEST', { fromUserId: requesterId });
+    await this.notificationService.create(addresseeId, 'FRIEND_REQUEST', this.buildFriendPayload(created, addresseeId));
 
     return this.toActionDto(created, requesterId);
   }
