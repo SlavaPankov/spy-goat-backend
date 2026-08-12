@@ -16,6 +16,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PresenceModule } from './presence/presence.module';
 import { NotificationModule } from './notification/notification.module';
 import { FriendModule } from './friend/friend.module';
+import { RoomInviteModule } from './room-invite/room-invite.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { FriendModule } from './friend/friend.module';
     PresenceModule,
     NotificationModule,
     FriendModule,
+    RoomInviteModule,
     EventEmitterModule.forRoot(),
   ],
   providers: [

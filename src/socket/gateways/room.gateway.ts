@@ -56,22 +56,9 @@ export class RoomGateway {
   ) {
     try {
       await this.roomService.join(data.roomId, data.userId);
+      await this.roomService.notifyPlayerJoined(data.roomId, data.eventId);
 
-      const [roomDetails, roomPlayers, currentPlayer, roomStats] = await Promise.all([
-        this.roomService.findOneDetails(data.roomId),
-        this.roomService.findRoomPlayers(data.roomId),
-        this.roomService.findPlayerByUserId(data.roomId, data.userId),
-        this.roomService.findRoomStats(data.roomId),
-      ]);
-
-      this.socketServer.emitToRoom(
-        data.roomId,
-        SocketEvent.ROOM_PLAYER_JOINED,
-        { roomDetails, roomPlayers },
-        data.eventId
-      );
-      this.socketServer.emitToRoom(data.roomId, SocketEvent.ROOM_STATS_UPDATED, { roomStats }, data.eventId);
-
+      const currentPlayer = await this.roomService.findPlayerByUserId(data.roomId, data.userId);
       client.emit(SocketEvent.ROOM_PLAYER_UPDATED, SocketResponseBuilder.success({ currentPlayer }, data.eventId));
     } catch (error) {
       this.socketServer.emitError(client, SocketEvent.ROOM_PLAYER_JOINED_ERROR, error, {

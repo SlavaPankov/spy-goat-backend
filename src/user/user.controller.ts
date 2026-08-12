@@ -1,6 +1,15 @@
-import { ClassSerializerInterceptor, Controller, Get, Param, ParseUUIDPipe, UseInterceptors } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { UserQueryDto } from './dto/user-query.dto';
 
 @Controller('users')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -8,8 +17,8 @@ export class UserController {
   constructor(private readonly usersService: UserService) {}
 
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@CurrentUser('userId') userId: string, @Query() query: UserQueryDto) {
+    return this.usersService.findAll(userId, query);
   }
 
   @Get('me')

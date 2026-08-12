@@ -57,4 +57,12 @@ export class FriendController {
   getStatusWith(@CurrentUser('userId') userId: string, @Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.friendService.getStatusWith(userId, id);
   }
+
+  @Get('notification-status/:notificationId')
+  getNotificationStatus(
+    @CurrentUser('userId') userId: string,
+    @Param('notificationId', new ParseUUIDPipe({ version: '4' })) notificationId: string
+  ) {
+    return this.friendService.getFriendRequestStatusForNotification(userId, notificationId);
+  }
 }

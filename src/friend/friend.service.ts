@@ -5,7 +5,7 @@ import { EErrorMessages } from '../types/enums/errorMessage';
 import { Friendship, FriendshipStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { FriendDto, FriendshipActionDto, IncomingFriendRequestDto, OutgoingFriendRequestDto } from './dto/friend.dto';
-import { FriendshipStatusWith } from './types/friendship-status-with.type';
+import { FriendshipStatusNotificationWith, FriendshipStatusWith } from './types/friendship-status-with.type';
 
 @Injectable()
 export class FriendService {
@@ -313,5 +313,49 @@ export class FriendService {
       status: ownDirection ? 'OUTGOING_PENDING' : 'INCOMING_PENDING',
       friendshipId: friendship.id,
     };
+  }
+
+  async getFriendRequestStatusForNotification(
+    userId: string,
+    notificationId: string
+  ): Promise<FriendshipStatusNotificationWith> {
+    const notification = await this.prismaService.notification.findUnique({ where: { id: notificationId } });
+
+    if (notification?.userId !== userId || notification.type !== 'FRIEND_REQUEST') {
+      return { status: 'NONE' };
+    }
+
+    const friendshipId = (notification.payload as { friendshipId?: string } | null)?.friendshipId;
+    if (!friendshipId) return { status: 'NONE' };
+
+    const supersededBy = await this.prismaService.notification.findFirst({
+      where: {
+        userId,
+        type: 'FRIEND_REQUEST',
+        payload: { path: ['friendshipId'], equals: friendshipId },
+        createdAt: { gt: notification.createdAt },
+      },
+      select: { id: true },
+    });
+
+    if (supersededBy) {
+      return { status: 'NONE' };
+    }
+
+    const friendship = await this.prismaService.friendship.findUnique({ where: { id: friendshipId } });
+
+    if (friendship?.addresseeId !== userId) {
+      return { status: 'NONE' };
+    }
+
+    if (friendship.status === FriendshipStatus.ACCEPTED) {
+      return { status: 'FRIENDS' };
+    }
+
+    if (friendship.status !== FriendshipStatus.PENDING) {
+      return { status: 'NONE' };
+    }
+
+    return { status: 'PENDING', friendshipId: friendship.id };
   }
 }

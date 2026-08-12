@@ -7,6 +7,7 @@ import { EErrorMessages } from '../types/enums/errorMessage';
 import { EErrorStatus } from '../types/enums/errorStatus';
 import { plainToInstance } from 'class-transformer';
 import { UserDto } from './dto/user.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserService {
@@ -18,10 +19,26 @@ export class UserService {
     return await bcrypt.hash(password, salt);
   }
 
-  async findAll() {
-    const users = await this.prisma.user.findMany();
+  async findAll(userId: string, { limit, offset, search }: { limit: number; offset: number; search?: string }) {
+    const where: Prisma.UserWhereInput = {
+      id: { not: userId },
+      ...(search?.trim() && { username: { contains: search.trim(), mode: 'insensitive' } }),
+    };
 
-    return plainToInstance(UserDto, users);
+    const [users, count] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { username: 'asc' },
+        skip: offset,
+        take: limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      users: plainToInstance(UserDto, users, { excludeExtraneousValues: true }),
+      count,
+    };
   }
 
   async findOne(id: string) {

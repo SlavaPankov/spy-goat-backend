@@ -20,13 +20,17 @@ import { RoomDetailsDto } from './dto/room-details.dto';
 import { RoomPlayersDto } from './dto/room-players.dto';
 import { RoomPlayersStats } from './dto/room-players-stats.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { SocketServerService } from '../socket/socket-server.service';
+import { SocketEvent } from '../socket/types/socket-event-enum.types';
 
 @Injectable()
 export class RoomService {
   constructor(
     private readonly prismaService: PrismaService,
     @Inject(forwardRef(() => GameService))
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    @Inject(forwardRef(() => SocketServerService))
+    private readonly socketServer: SocketServerService
   ) {}
 
   private readonly DEFAULT_PAGE_SIZE = 9;
@@ -279,6 +283,17 @@ export class RoomService {
 
       return new RoomEntity(roomWithPlayers);
     });
+  }
+
+  async notifyPlayerJoined(roomId: string, eventId?: string): Promise<void> {
+    const [roomDetails, roomPlayers, roomStats] = await Promise.all([
+      this.findOneDetails(roomId),
+      this.findRoomPlayers(roomId),
+      this.findRoomStats(roomId),
+    ]);
+
+    this.socketServer.emitToRoom(roomId, SocketEvent.ROOM_PLAYER_JOINED, { roomDetails, roomPlayers }, eventId);
+    this.socketServer.emitToRoom(roomId, SocketEvent.ROOM_STATS_UPDATED, { roomStats }, eventId);
   }
 
   async join(roomId: string, userId: string) {

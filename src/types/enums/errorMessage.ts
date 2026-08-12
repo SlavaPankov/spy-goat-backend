@@ -33,4 +33,6 @@ export const enum EErrorMessages {
   NOT_ALLOWED_SELF_FRIEND = 'Cannot add yourself as a friend',
   FRIENDS_REQUEST_NOT_FOUND = 'Request not found',
   NOT_YOUR_FRIENDS = 'You are not a friends',
+  NOT_ALLOWED_SELF_INVITE = 'Not allowed to self invite',
+  ROOM_INVITE_NOT_FOUND = 'Room invite not found',
 }
