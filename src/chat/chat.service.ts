@@ -126,11 +126,6 @@ export class ChatService {
       }
     }
 
-    // TODO: REMOVE THIS
-    if (rawContent === 'error') {
-      throw new BadRequestException('test error');
-    }
-
     const { content, iv } = encrypt(rawContent.trim());
 
     const message = await this.prismaService.message.create({

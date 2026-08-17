@@ -17,6 +17,7 @@ import { PresenceModule } from './presence/presence.module';
 import { NotificationModule } from './notification/notification.module';
 import { FriendModule } from './friend/friend.module';
 import { RoomInviteModule } from './room-invite/room-invite.module';
+import { DirectMessageModule } from './direct-message/direct-message.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RoomInviteModule } from './room-invite/room-invite.module';
     NotificationModule,
     FriendModule,
     RoomInviteModule,
+    DirectMessageModule,
     EventEmitterModule.forRoot(),
   ],
   providers: [

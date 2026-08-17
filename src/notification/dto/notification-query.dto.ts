@@ -1,20 +1,8 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsOptional } from 'class-validator';
+import { QueryDto } from '../../common/dto/query.dto';
 
-export class QueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  limit: number = 20;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  offset: number = 0;
-
+export class NotificationQueryDto extends QueryDto {
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()

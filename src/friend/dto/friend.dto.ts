@@ -1,7 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { IsoDate } from '../../common/decorators/iso-date.decorator';
-import { FriendUserDto } from './friend-user.dto';
 import { FriendshipStatus } from '@prisma/client';
+import { PublicUserDto } from '../../common/dto/public-user.dto';
 
 export class FriendDto {
   @Expose()
@@ -12,8 +12,8 @@ export class FriendDto {
   createdAt: Date;
 
   @Expose()
-  @Type(() => FriendUserDto)
-  friend: FriendUserDto;
+  @Type(() => PublicUserDto)
+  friend: PublicUserDto;
 }
 
 export class IncomingFriendRequestDto {
@@ -25,8 +25,8 @@ export class IncomingFriendRequestDto {
   createdAt: Date;
 
   @Expose()
-  @Type(() => FriendUserDto)
-  fromUser: FriendUserDto;
+  @Type(() => PublicUserDto)
+  fromUser: PublicUserDto;
 }
 
 export class OutgoingFriendRequestDto {
@@ -38,8 +38,8 @@ export class OutgoingFriendRequestDto {
   createdAt: Date;
 
   @Expose()
-  @Type(() => FriendUserDto)
-  toUser: FriendUserDto;
+  @Type(() => PublicUserDto)
+  toUser: PublicUserDto;
 }
 
 export class FriendshipActionDto {
@@ -54,6 +54,6 @@ export class FriendshipActionDto {
   createdAt: Date;
 
   @Expose()
-  @Type(() => FriendUserDto)
-  otherUser: FriendUserDto;
+  @Type(() => PublicUserDto)
+  otherUser: PublicUserDto;
 }

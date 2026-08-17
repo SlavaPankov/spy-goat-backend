@@ -35,4 +35,13 @@ export const enum EErrorMessages {
   NOT_YOUR_FRIENDS = 'You are not a friends',
   NOT_ALLOWED_SELF_INVITE = 'Not allowed to self invite',
   ROOM_INVITE_NOT_FOUND = 'Room invite not found',
+
+  CONVERSATION_NOT_FOUND = 'Conversation not found',
+
+  DIRECT_MESSAGE_NOT_FOUND = 'Direct message not found',
+  DIRECT_MESSAGE_SELF = 'You cannot send a message to yourself',
+  DIRECT_MESSAGE_NOT_ALLOWED = 'You cannot edit message',
+  DIRECT_MESSAGE_RECIPIENT_FORBIDDEN = 'Recipient is not your friend',
+  DIRECT_MESSAGE_EMPTY = 'You cannot send an empty message',
+  DIRECT_MESSAGE_REPLY_NOT_FOUND = 'There is no reply message',
 }

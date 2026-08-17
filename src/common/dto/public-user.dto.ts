@@ -1,7 +1,6 @@
 import { Expose } from 'class-transformer';
-import { IsoDate } from '../../common/decorators/iso-date.decorator';
 
-export class FriendUserDto {
+export class PublicUserDto {
   @Expose()
   id: string;
 
@@ -12,6 +11,5 @@ export class FriendUserDto {
   isOnline: boolean;
 
   @Expose()
-  @IsoDate()
   lastSeenAt: Date | null;
 }

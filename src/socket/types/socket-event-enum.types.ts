@@ -62,6 +62,12 @@ export const enum SocketEvent {
   NOTIFICATION_READ = 'notification:read',
   NOTIFICATION_ALL_READ = 'notification:allRead',
 
+  // DM -> Client
+  DM_NEW = 'dm:new',
+  DM_READ = 'dm:read',
+  DM_DELETE = 'dm:delete',
+  DM_UPDATE = 'dm:update',
+
   // System
   ERROR = 'error',
 }

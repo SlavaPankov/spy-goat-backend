@@ -1,7 +1,7 @@
 import { ClassSerializerInterceptor, Controller, Get, Param, Patch, Query, UseInterceptors } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { QueryDto } from './dto/notification-query.dto';
+import { NotificationQueryDto } from './dto/notification-query.dto';
 
 @Controller('notifications')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -9,7 +9,7 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Get()
-  async findAll(@CurrentUser('userId') userId: string, @Query() queryDto: QueryDto) {
+  async findAll(@CurrentUser('userId') userId: string, @Query() queryDto: NotificationQueryDto) {
     return this.notificationService.list(userId, queryDto);
   }
 
