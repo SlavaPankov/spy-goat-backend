@@ -364,14 +364,24 @@ export class DirectMessageService {
     return { count };
   }
 
-  async getConversationsList(userId: string, { limit, offset }: { limit: number; offset: number }) {
+  async getConversationsList(
+    userId: string,
+    { limit, offset, search }: { limit: number; offset: number; search?: string }
+  ) {
+    const trimmedSearch = search?.trim();
     const where: Prisma.ConversationWhereInput = {
       OR: [
         {
           userAId: userId,
+          ...(trimmedSearch && {
+            userB: { username: { contains: trimmedSearch, mode: 'insensitive' } },
+          }),
         },
         {
           userBId: userId,
+          ...(trimmedSearch && {
+            userA: { username: { contains: trimmedSearch, mode: 'insensitive' } },
+          }),
         },
       ],
     };
@@ -445,5 +455,47 @@ export class DirectMessageService {
       conversations: plainToInstance(ConversationListItemDto, items, { excludeExtraneousValues: true }),
       count,
     };
+  }
+
+  async markAllReadByConversationId(userId: string, conversationId: string) {
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+    });
+
+    if (!conversation || (conversation.userAId !== userId && conversation.userBId !== userId)) {
+      throw new NotFoundException(EErrorMessages.CONVERSATION_NOT_FOUND);
+    }
+
+    const otherUserId = conversation.userAId === userId ? conversation.userBId : conversation.userAId;
+    const readAt = new Date();
+
+    const { count } = await this.prismaService.directMessage.updateMany({
+      where: { conversationId, recipientId: userId, readAt: null, deletedAt: null },
+      data: { readAt },
+    });
+
+    if (count > 0) {
+      this.eventEmitter.emit('dm.readAll', { conversationId, readerId: userId, otherUserId, readAt });
+    }
+
+    return { updated: count };
+  }
+
+  async deleteConversation(userId: string, conversationId: string) {
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+    });
+
+    if (!conversation || (conversation.userAId !== userId && conversation.userBId !== userId)) {
+      throw new NotFoundException(EErrorMessages.CONVERSATION_NOT_FOUND);
+    }
+
+    const otherUserId = conversation.userAId === userId ? conversation.userBId : conversation.userAId;
+
+    await this.prismaService.conversation.delete({
+      where: { id: conversationId },
+    });
+
+    this.eventEmitter.emit('dm.deleteConversation', { conversationId, otherUserId, readerId: userId });
   }
 }

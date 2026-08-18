@@ -1,4 +1,5 @@
 import { Expose } from 'class-transformer';
+import { IsoDate } from '../decorators/iso-date.decorator';
 
 export class PublicUserDto {
   @Expose()
@@ -11,5 +12,6 @@ export class PublicUserDto {
   isOnline: boolean;
 
   @Expose()
+  @IsoDate()
   lastSeenAt: Date | null;
 }

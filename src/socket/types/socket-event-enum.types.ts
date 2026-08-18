@@ -67,6 +67,8 @@ export const enum SocketEvent {
   DM_READ = 'dm:read',
   DM_DELETE = 'dm:delete',
   DM_UPDATE = 'dm:update',
+  DM_READ_ALL = 'dm:readAll',
+  DM_DELETE_CONVERSATION = 'dm:deleteConversation',
 
   // System
   ERROR = 'error',

@@ -16,6 +16,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { DirectMessageEditDto, DirectMessageSendDto } from './dto/direct-message-send.dto';
 import { QueryDto } from '../common/dto/query.dto';
 import { CursorQueryDto } from '../common/dto/cursor-query.dto';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
 
 @Controller('direct-message')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -25,7 +26,7 @@ export class DirectMessageController {
   @Get('conversations')
   async getConversationsList(
     @CurrentUser('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
-    @Query() queryDto: QueryDto
+    @Query() queryDto: SearchQueryDto
   ) {
     return this.directMessageService.getConversationsList(userId, queryDto);
   }
@@ -92,5 +93,21 @@ export class DirectMessageController {
     @Param('messageId', new ParseUUIDPipe({ version: '4' })) messageId: string
   ) {
     return this.directMessageService.deleteMessage(userId, messageId);
+  }
+
+  @Patch('conversations/:conversationId/read-all')
+  async markAllReadByConversationId(
+    @CurrentUser('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Param('conversationId', new ParseUUIDPipe({ version: '4' })) conversationId: string
+  ) {
+    return this.directMessageService.markAllReadByConversationId(userId, conversationId);
+  }
+
+  @Delete('conversations/:conversationId')
+  async deleteConversation(
+    @CurrentUser('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Param('conversationId', new ParseUUIDPipe({ version: '4' })) conversationId: string
+  ) {
+    return this.directMessageService.deleteConversation(userId, conversationId);
   }
 }

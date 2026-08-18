@@ -7,11 +7,13 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import { FriendService } from './friend.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
 
 @Controller('friends')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -39,18 +41,18 @@ export class FriendController {
   }
 
   @Get()
-  getFriendsList(@CurrentUser('userId') userId: string) {
-    return this.friendService.listFriends(userId);
+  getFriendsList(@CurrentUser('userId') userId: string, @Query() query: SearchQueryDto) {
+    return this.friendService.listFriends(userId, query);
   }
 
   @Get('incoming')
-  getIncomingList(@CurrentUser('userId') userId: string) {
-    return this.friendService.listIncoming(userId);
+  getIncomingList(@CurrentUser('userId') userId: string, @Query() query: SearchQueryDto) {
+    return this.friendService.listIncoming(userId, query);
   }
 
   @Get('outgoing')
-  getOutgoingList(@CurrentUser('userId') userId: string) {
-    return this.friendService.listOutgoing(userId);
+  getOutgoingList(@CurrentUser('userId') userId: string, @Query() query: SearchQueryDto) {
+    return this.friendService.listOutgoing(userId, query);
   }
 
   @Get('status/:id')

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { EErrorMessages } from '../types/enums/errorMessage';
-import { Friendship, FriendshipStatus } from '@prisma/client';
+import { Friendship, FriendshipStatus, Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { FriendDto, FriendshipActionDto, IncomingFriendRequestDto, OutgoingFriendRequestDto } from './dto/friend.dto';
 import { FriendshipStatusNotificationWith, FriendshipStatusWith } from './types/friendship-status-with.type';
@@ -165,10 +165,7 @@ export class FriendService {
       include: { requester: { select: this.userSelect }, addressee: { select: this.userSelect } },
     });
 
-    if (
-      friendship?.status !== FriendshipStatus.ACCEPTED ||
-      (friendship.addresseeId !== userId && friendship.requesterId !== userId)
-    ) {
+    if (friendship?.addresseeId !== userId && friendship?.requesterId !== userId) {
       throw new NotFoundException(EErrorMessages.NOT_YOUR_FRIENDS);
     }
 
@@ -179,106 +176,136 @@ export class FriendService {
     return dto;
   }
 
-  async listFriends(userId: string) {
-    const friendships = await this.prismaService.friendship.findMany({
-      where: {
-        status: FriendshipStatus.ACCEPTED,
-        OR: [
-          {
-            addresseeId: userId,
-          },
-          {
-            requesterId: userId,
-          },
-        ],
-      },
-      include: {
-        requester: {
-          select: {
-            id: true,
-            username: true,
-            isOnline: true,
-            lastSeenAt: true,
-          },
+  async listFriends(userId: string, { limit, offset, search }: { limit: number; offset: number; search?: string }) {
+    const trimmedSearch = search?.trim();
+    const where: Prisma.FriendshipWhereInput = {
+      status: FriendshipStatus.ACCEPTED,
+      OR: [
+        {
+          requesterId: userId,
+          ...(trimmedSearch && {
+            addressee: { username: { contains: trimmedSearch, mode: 'insensitive' } },
+          }),
         },
-        addressee: {
-          select: {
-            id: true,
-            username: true,
-            isOnline: true,
-            lastSeenAt: true,
-          },
+        {
+          addresseeId: userId,
+          ...(trimmedSearch && {
+            requester: { username: { contains: trimmedSearch, mode: 'insensitive' } },
+          }),
         },
-      },
-    });
+      ],
+    };
 
-    return plainToInstance(
-      FriendDto,
-      friendships.map((f) => ({
-        id: f.id,
-        createdAt: f.createdAt,
-        friend: f.requesterId === userId ? f.addressee : f.requester,
-      })),
-      { excludeExtraneousValues: true }
-    );
+    const [friendships, count] = await this.prismaService.$transaction([
+      this.prismaService.friendship.findMany({
+        where,
+        include: {
+          requester: { select: { id: true, username: true, isOnline: true, lastSeenAt: true } },
+          addressee: { select: { id: true, username: true, isOnline: true, lastSeenAt: true } },
+        },
+      }),
+      this.prismaService.friendship.count({ where }),
+    ]);
+
+    const items = friendships
+      .map((friend) => ({
+        id: friend.id,
+        createdAt: friend.createdAt,
+        friend: friend.requesterId === userId ? friend.addressee : friend.requester,
+      }))
+      .sort((a, b) => a.friend.username.localeCompare(b.friend.username))
+      .slice(offset, offset + limit);
+
+    return {
+      friends: plainToInstance(FriendDto, items, { excludeExtraneousValues: true }),
+      count,
+    };
   }
 
-  async listIncoming(userId: string) {
-    const requests = await this.prismaService.friendship.findMany({
-      where: {
-        status: FriendshipStatus.PENDING,
-        addresseeId: userId,
-      },
-      include: {
-        requester: {
-          select: {
-            id: true,
-            username: true,
-            isOnline: true,
-            lastSeenAt: true,
+  async listIncoming(userId: string, { limit, offset, search }: { limit: number; offset: number; search?: string }) {
+    const trimmedSearch = search?.trim();
+    const where: Prisma.FriendshipWhereInput = {
+      status: FriendshipStatus.PENDING,
+      addresseeId: userId,
+      ...(search && { requester: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
+    };
+
+    const [requests, count] = await this.prismaService.$transaction([
+      this.prismaService.friendship.findMany({
+        where,
+        include: {
+          requester: {
+            select: {
+              id: true,
+              username: true,
+              isOnline: true,
+              lastSeenAt: true,
+            },
           },
         },
-      },
-    });
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.friendship.count({
+        where,
+      }),
+    ]);
 
-    return plainToInstance(
-      IncomingFriendRequestDto,
-      requests.map((r) => ({
-        id: r.id,
-        createdAt: r.createdAt,
-        fromUser: r.requester,
-      })),
-      { excludeExtraneousValues: true }
-    );
+    return {
+      requests: plainToInstance(
+        IncomingFriendRequestDto,
+        requests.map((request) => ({
+          id: request.id,
+          createdAt: request.createdAt,
+          fromUser: request.requester,
+        })),
+        { excludeExtraneousValues: true }
+      ),
+      count,
+    };
   }
 
-  async listOutgoing(userId: string) {
-    const requests = await this.prismaService.friendship.findMany({
-      where: {
-        status: FriendshipStatus.PENDING,
-        requesterId: userId,
-      },
-      include: {
-        addressee: {
-          select: {
-            id: true,
-            username: true,
-            isOnline: true,
-            lastSeenAt: true,
+  async listOutgoing(userId: string, { limit, offset, search }: { limit: number; offset: number; search?: string }) {
+    const trimmedSearch = search?.trim();
+    const where: Prisma.FriendshipWhereInput = {
+      status: FriendshipStatus.PENDING,
+      requesterId: userId,
+      ...(search && { addressee: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
+    };
+
+    const [requests, count] = await this.prismaService.$transaction([
+      this.prismaService.friendship.findMany({
+        where,
+        include: {
+          addressee: {
+            select: {
+              id: true,
+              username: true,
+              isOnline: true,
+              lastSeenAt: true,
+            },
           },
         },
-      },
-    });
+        take: limit,
+        skip: offset,
+      }),
+      this.prismaService.friendship.count({
+        where,
+      }),
+    ]);
 
-    return plainToInstance(
-      OutgoingFriendRequestDto,
-      requests.map((r) => ({
-        id: r.id,
-        createdAt: r.createdAt,
-        toUser: r.addressee,
-      })),
-      { excludeExtraneousValues: true }
-    );
+    return {
+      requests: plainToInstance(
+        OutgoingFriendRequestDto,
+        requests.map((request) => ({
+          id: request.id,
+          createdAt: request.createdAt,
+          toUser: request.addressee,
+        })),
+        { excludeExtraneousValues: true }
+      ),
+      count,
+    };
   }
 
   async getStatusWith(userId: string, otherUserId: string): Promise<FriendshipStatusWith> {

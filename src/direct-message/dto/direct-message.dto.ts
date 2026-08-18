@@ -1,5 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { PublicUserDto } from '../../common/dto/public-user.dto';
+import { IsoDate } from '../../common/decorators/iso-date.decorator';
 
 export class DirectMessageReplyPreviewDto {
   @Expose()
@@ -36,14 +37,18 @@ export class DirectMessageDto {
   replyTo: DirectMessageReplyPreviewDto;
 
   @Expose()
+  @IsoDate()
   readAt: Date | null;
 
   @Expose()
+  @IsoDate()
   editedAt: Date | null;
 
   @Expose()
+  @IsoDate()
   createdAt: Date;
 
   @Expose()
+  @IsoDate()
   deletedAt: Date | null;
 }

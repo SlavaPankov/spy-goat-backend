@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { UserQueryDto } from './dto/user-query.dto';
+import { SearchQueryDto } from '../common/dto/search-query.dto';
 
 @Controller('users')
 @UseInterceptors(ClassSerializerInterceptor)
@@ -17,7 +17,7 @@ export class UserController {
   constructor(private readonly usersService: UserService) {}
 
   @Get()
-  findAll(@CurrentUser('userId') userId: string, @Query() query: UserQueryDto) {
+  findAll(@CurrentUser('userId') userId: string, @Query() query: SearchQueryDto) {
     return this.usersService.findAll(userId, query);
   }
 

@@ -35,4 +35,20 @@ export class DirectMessageNotifier {
   handleDelete({ message }: { message: DirectMessageDto }) {
     this.emitToRoom(message, SocketEvent.DM_DELETE);
   }
+
+  @OnEvent('dm.readAll')
+  handleReadAll(payload: { conversationId: string; readerId: string; otherUserId: string; readAt: Date }) {
+    this.socketServer.emitToRoom(`user:${payload.readerId}`, SocketEvent.DM_READ_ALL, payload);
+    this.socketServer.emitToRoom(`user:${payload.otherUserId}`, SocketEvent.DM_READ_ALL, payload);
+  }
+
+  @OnEvent('dm.deleteConversation')
+  handleDeleteConversation(payload: { conversationId: string; readerId: string; otherUserId: string }) {
+    this.socketServer.emitToRoom(`user:${payload.readerId}`, SocketEvent.DM_DELETE_CONVERSATION, {
+      conversationId: payload.conversationId,
+    });
+    this.socketServer.emitToRoom(`user:${payload.otherUserId}`, SocketEvent.DM_DELETE_CONVERSATION, {
+      conversationId: payload.conversationId,
+    });
+  }
 }
