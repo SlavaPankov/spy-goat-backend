@@ -1,5 +1,14 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
-import { Optional } from '@nestjs/common';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
+  IsOptional,
+} from 'class-validator';
 
 export class CreateRoomDto {
   @IsNotEmpty()
@@ -27,6 +36,6 @@ export class CreateRoomDto {
   password: string;
 
   @IsBoolean()
-  @Optional()
+  @IsOptional()
   withBots: boolean;
 }

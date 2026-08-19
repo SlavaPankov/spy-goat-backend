@@ -4,7 +4,6 @@ import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { RoomModule } from './room/room.module';
 import { GameModule } from './game/game.module';
-import { LobbyModule } from './lobby/lobby.module';
 import { StatisticsModule } from './statistics/statistics.module';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -27,7 +26,6 @@ import { DirectMessageModule } from './direct-message/direct-message.module';
     ConfigModule,
     RoomModule,
     GameModule,
-    LobbyModule,
     StatisticsModule,
     JwtModule,
     ChatModule,

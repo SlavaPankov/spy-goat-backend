@@ -474,7 +474,6 @@ export class GameService {
       throw new BadRequestException('Card is not confirmed');
     }
 
-    // Если все уже подтвердили — ход начал обрабатываться, откат невозможен
     const allReady = player.game.players.every((p) => p.isSelectedCardConfirmed);
 
     if (allReady) {
@@ -945,6 +944,8 @@ export class GameService {
           },
         });
 
+        const isWinner = player.id === winnerId;
+
         await this.prismaService.playerRoomStats.upsert({
           where: {
             userId_roomId: {
@@ -956,13 +957,13 @@ export class GameService {
             userId: player.userId,
             roomId: game.roomId,
             gamesPlayed: 1,
-            gamesWon: player.isWinner ? 1 : 0,
+            gamesWon: isWinner ? 1 : 0,
             totalPenalty: player.totalPenalty,
             bestScore: player.totalPenalty,
           },
           update: {
             gamesPlayed: { increment: 1 },
-            gamesWon: player.isWinner ? { increment: 1 } : undefined,
+            gamesWon: isWinner ? { increment: 1 } : undefined,
             totalPenalty: { increment: player.totalPenalty },
             bestScore: {
               set:

@@ -7,7 +7,7 @@ import { GameGateway } from './gateways/game.gateway';
 import { RoomModule } from '../room/room.module';
 import { ChatModule } from '../chat/chat.module';
 import { GameModule } from '../game/game.module';
-import { PresenceModule } from '../presence/presence.module'; // ← добавляем
+import { PresenceModule } from '../presence/presence.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PresenceGateway } from './gateways/presence.gateway';

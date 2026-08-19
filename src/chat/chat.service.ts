@@ -121,7 +121,7 @@ export class ChatService {
     if (replyToId) {
       const replyTo = await this.prismaService.message.findUnique({ where: { id: replyToId } });
 
-      if (replyTo?.roomId !== roomId) {
+      if (replyTo?.roomId !== roomId || replyTo.deletedAt) {
         throw new BadRequestException(EErrorMessages.INVALID_PLAYER_TARGET);
       }
     }

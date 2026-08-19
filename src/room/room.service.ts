@@ -564,10 +564,6 @@ export class RoomService {
       },
     });
 
-    if (!playersRoomStats) {
-      throw new NotFoundException(EErrorMessages.PLAYER_NOT_FOUND);
-    }
-
     return plainToInstance(RoomPlayersStats, playersRoomStats, { excludeExtraneousValues: true });
   }
 

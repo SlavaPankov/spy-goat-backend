@@ -227,7 +227,7 @@ export class FriendService {
     const where: Prisma.FriendshipWhereInput = {
       status: FriendshipStatus.PENDING,
       addresseeId: userId,
-      ...(search && { requester: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
+      ...(trimmedSearch && { requester: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
     };
 
     const [requests, count] = await this.prismaService.$transaction([
@@ -270,7 +270,7 @@ export class FriendService {
     const where: Prisma.FriendshipWhereInput = {
       status: FriendshipStatus.PENDING,
       requesterId: userId,
-      ...(search && { addressee: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
+      ...(trimmedSearch && { addressee: { username: { contains: trimmedSearch, mode: 'insensitive' } } }),
     };
 
     const [requests, count] = await this.prismaService.$transaction([

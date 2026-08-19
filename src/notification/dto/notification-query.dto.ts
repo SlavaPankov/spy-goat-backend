@@ -1,10 +1,10 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional } from 'class-validator';
 import { QueryDto } from '../../common/dto/query.dto';
 
 export class NotificationQueryDto extends QueryDto {
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }: { value: unknown }) => value === true || value === 'true')
   @IsBoolean()
   unreadOnly: boolean = false;
 }

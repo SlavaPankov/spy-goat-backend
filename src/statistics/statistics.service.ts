@@ -98,11 +98,11 @@ export class StatisticsService {
         break;
       case LeaderboardSortBy.BEST_SCORE:
         entries.sort((a, b) => {
-          if (!a.bestScore) {
+          if (a.bestScore === null) {
             return 1;
           }
 
-          if (!b.bestScore) {
+          if (b.bestScore === null) {
             return -1;
           }
 
